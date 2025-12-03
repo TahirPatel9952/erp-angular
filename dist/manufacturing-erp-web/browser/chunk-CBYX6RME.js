@@ -1,0 +1,1 @@
+import"./chunk-TMC7WMLO.js";var a=[{path:"",redirectTo:"challans",pathMatch:"full"},{path:"challans",loadComponent:()=>import("./chunk-4MMPDZWT.js").then(t=>t.ChallansComponent)},{path:"dispatch",loadComponent:()=>import("./chunk-XARX2QBG.js").then(t=>t.DispatchComponent)}];export{a as DELIVERY_ROUTES};

@@ -1,0 +1,1 @@
+import"./chunk-TMC7WMLO.js";var t=[{path:"",redirectTo:"invoices",pathMatch:"full"},{path:"invoices",loadComponent:()=>import("./chunk-EER3B7E7.js").then(o=>o.InvoicesComponent)},{path:"payments",loadComponent:()=>import("./chunk-IDSF5CFB.js").then(o=>o.PaymentsComponent)}];export{t as INVOICING_ROUTES};
