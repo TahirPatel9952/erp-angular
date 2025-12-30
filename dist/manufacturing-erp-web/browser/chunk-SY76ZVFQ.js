@@ -1,1 +1,0 @@
-import"./chunk-TMC7WMLO.js";var t=[{path:"",redirectTo:"orders",pathMatch:"full"},{path:"orders",loadComponent:()=>import("./chunk-Y274TROB.js").then(o=>o.SalesOrdersComponent)},{path:"tracking",loadComponent:()=>import("./chunk-U7XWRPZM.js").then(o=>o.SalesTrackingComponent)}];export{t as SALES_ROUTES};
