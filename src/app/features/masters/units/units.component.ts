@@ -57,7 +57,7 @@ export class UnitsComponent implements OnInit {
   first = 0;
 
   unitForm: FormGroup = this.fb.group({
-    code: ['', [Validators.required]],
+    code: [''],
     name: ['', [Validators.required]],
     symbol: ['', [Validators.required]],
     type: ['QUANTITY', [Validators.required]],
