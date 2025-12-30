@@ -1,0 +1,169 @@
+<div class="page-container">
+  <div class="page-header">
+    <h1>Raw Materials</h1>
+    <div class="header-actions">
+      <span class="p-input-icon-left">
+        <i class="pi pi-search"></i>
+        <input pInputText placeholder="Search..." [(ngModel)]="searchTerm" (keyup.enter)="onSearch()" />
+      </span>
+      <button pButton label="Add Material" icon="pi pi-plus" (click)="showDialog()"></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <p-table 
+      [value]="materials()" 
+      [paginator]="true" 
+      [rows]="rows"
+      [totalRecords]="totalRecords"
+      [lazy]="true"
+      (onLazyLoad)="onPageChange($event)"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="Showing {first} to {last} of {totalRecords} entries"
+      [rowsPerPageOptions]="[10, 25, 50]"
+      [loading]="loading()"
+      styleClass="p-datatable-sm"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th pSortableColumn="code">Code <p-sortIcon field="code" /></th>
+          <th pSortableColumn="name">Name <p-sortIcon field="name" /></th>
+          <th>Category</th>
+          <th>Unit</th>
+          <th>Price</th>
+          <th>Stock</th>
+          <th>Reorder Level</th>
+          <th>Status</th>
+          <th style="width: 150px">Actions</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-material>
+        <tr>
+          <td><strong>{{ material.code }}</strong></td>
+          <td>{{ material.name }}</td>
+          <td>{{ material.categoryName || '-' }}</td>
+          <td>{{ material.unitSymbol || material.unitName }}</td>
+          <td>₹{{ material.unitPrice | number:'1.2-2' }}</td>
+          <td [class.text-error]="material.currentStock < material.reorderLevel">
+            {{ material.currentStock || 0 }}
+          </td>
+          <td>{{ material.reorderLevel }}</td>
+          <td>
+            <p-tag 
+              [value]="material.isActive ? 'Active' : 'Inactive'" 
+              [severity]="material.isActive ? 'success' : 'danger'"
+              (click)="toggleStatus(material)"
+              styleClass="cursor-pointer"
+            />
+          </td>
+          <td>
+            <button pButton icon="pi pi-pencil" class="p-button-text p-button-sm" (click)="editMaterial(material)" pTooltip="Edit"></button>
+            <button pButton icon="pi pi-trash" class="p-button-text p-button-sm p-button-danger" (click)="deleteMaterial(material)" pTooltip="Delete"></button>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="9" class="text-center py-4">
+            <i class="pi pi-inbox text-4xl text-gray-300"></i>
+            <p class="text-gray-500 mt-2">No raw materials found</p>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+
+  <p-dialog 
+    [(visible)]="dialogVisible" 
+    [header]="isEditing ? 'Edit Raw Material' : 'Add Raw Material'"
+    [modal]="true"
+    [style]="{width: '700px'}"
+  >
+    <form [formGroup]="materialForm">
+      <div class="form-grid">
+        <div class="form-field">
+          <label class="required">Code</label>
+          <input pInputText formControlName="code" class="w-full" />
+          @if (materialForm.get('code')?.touched && materialForm.get('code')?.errors?.['required']) {
+            <small class="p-error">Code is required</small>
+          }
+        </div>
+        <div class="form-field">
+          <label class="required">Name</label>
+          <input pInputText formControlName="name" class="w-full" />
+          @if (materialForm.get('name')?.touched && materialForm.get('name')?.errors?.['required']) {
+            <small class="p-error">Name is required</small>
+          }
+        </div>
+        <div class="form-field full-width">
+          <label>Description</label>
+          <input pInputText formControlName="description" class="w-full" />
+        </div>
+        <div class="form-field">
+          <label>Category</label>
+          <p-dropdown 
+            formControlName="categoryId" 
+            [options]="categories()" 
+            placeholder="Select Category"
+            [showClear]="true"
+            styleClass="w-full"
+          ></p-dropdown>
+        </div>
+        <div class="form-field">
+          <label class="required">Unit</label>
+          <p-dropdown 
+            formControlName="unitId" 
+            [options]="units()" 
+            placeholder="Select Unit"
+            styleClass="w-full"
+          ></p-dropdown>
+          @if (materialForm.get('unitId')?.touched && materialForm.get('unitId')?.errors?.['required']) {
+            <small class="p-error">Unit is required</small>
+          }
+        </div>
+        <div class="form-field">
+          <label>HSN Code</label>
+          <input pInputText formControlName="hsnCode" class="w-full" />
+        </div>
+        <div class="form-field">
+          <label class="required">Unit Price (₹)</label>
+          <p-inputNumber formControlName="unitPrice" mode="currency" currency="INR" locale="en-IN" styleClass="w-full"></p-inputNumber>
+        </div>
+        <div class="form-field">
+          <label>Reorder Level</label>
+          <p-inputNumber formControlName="reorderLevel" styleClass="w-full"></p-inputNumber>
+        </div>
+        <div class="form-field">
+          <label>Reorder Quantity</label>
+          <p-inputNumber formControlName="reorderQuantity" styleClass="w-full"></p-inputNumber>
+        </div>
+        <div class="form-field">
+          <label>Lead Time (Days)</label>
+          <p-inputNumber formControlName="leadTimeDays" styleClass="w-full"></p-inputNumber>
+        </div>
+        <div class="form-field">
+          <label>Tax %</label>
+          <p-inputNumber formControlName="taxPercent" suffix="%" styleClass="w-full"></p-inputNumber>
+        </div>
+        <div class="form-field">
+          <label>Preferred Supplier</label>
+          <p-dropdown 
+            formControlName="supplierId" 
+            [options]="suppliers()" 
+            placeholder="Select Supplier"
+            [showClear]="true"
+            styleClass="w-full"
+          ></p-dropdown>
+        </div>
+        <div class="form-field">
+          <label>Barcode</label>
+          <input pInputText formControlName="barcode" class="w-full" />
+        </div>
+      </div>
+    </form>
+    <ng-template pTemplate="footer">
+      <button pButton label="Cancel" class="p-button-text" (click)="dialogVisible = false"></button>
+      <button pButton label="Save" (click)="saveMaterial()" [disabled]="materialForm.invalid"></button>
+    </ng-template>
+  </p-dialog>
+</div>

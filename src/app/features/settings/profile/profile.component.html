@@ -1,0 +1,83 @@
+<div class="page-container">
+  <div class="page-header">
+    <h1>My Profile</h1>
+  </div>
+
+  <div class="profile-grid">
+    <p-card styleClass="profile-card">
+      <div class="profile-header">
+        <p-avatar [label]="profile().name.charAt(0)" size="xlarge" shape="circle" styleClass="profile-avatar"></p-avatar>
+        <div class="profile-info">
+          <h2>{{ profile().name }}</h2>
+          <p>{{ profile().role }}</p>
+        </div>
+      </div>
+      <p-divider></p-divider>
+      <div class="profile-details">
+        <div class="detail-item">
+          <i class="pi pi-envelope"></i>
+          <span>{{ profile().email }}</span>
+        </div>
+        <div class="detail-item">
+          <i class="pi pi-phone"></i>
+          <span>{{ profile().phone }}</span>
+        </div>
+        <div class="detail-item">
+          <i class="pi pi-building"></i>
+          <span>{{ profile().department }}</span>
+        </div>
+        <div class="detail-item">
+          <i class="pi pi-calendar"></i>
+          <span>Joined {{ profile().joinDate }}</span>
+        </div>
+      </div>
+    </p-card>
+
+    <div class="profile-forms">
+      <p-card header="Update Profile" styleClass="settings-card">
+        <div class="form-grid">
+          <div class="form-field">
+            <label>Full Name</label>
+            <input pInputText class="w-full" [(ngModel)]="profile().name" />
+          </div>
+          <div class="form-field">
+            <label>Email</label>
+            <input pInputText class="w-full" [(ngModel)]="profile().email" />
+          </div>
+          <div class="form-field">
+            <label>Phone</label>
+            <input pInputText class="w-full" [(ngModel)]="profile().phone" />
+          </div>
+          <div class="form-field">
+            <label>Department</label>
+            <input pInputText class="w-full" [(ngModel)]="profile().department" disabled />
+          </div>
+        </div>
+        <div class="mt-4">
+          <button pButton label="Update Profile" icon="pi pi-check"></button>
+        </div>
+      </p-card>
+
+      <p-card header="Change Password" styleClass="settings-card">
+        <div class="form-grid">
+          <div class="form-field full-width">
+            <label>Current Password</label>
+            <input pInputText type="password" class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>New Password</label>
+            <input pInputText type="password" class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>Confirm New Password</label>
+            <input pInputText type="password" class="w-full" />
+          </div>
+        </div>
+        <div class="mt-4">
+          <button pButton label="Change Password" icon="pi pi-lock"></button>
+        </div>
+      </p-card>
+    </div>
+  </div>
+</div>
+

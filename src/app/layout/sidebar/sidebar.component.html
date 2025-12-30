@@ -1,0 +1,70 @@
+<aside class="sidebar" [class.collapsed]="collapsed">
+  <div class="sidebar-header">
+    <div class="logo">
+      <i class="pi pi-building"></i>
+      @if (!collapsed) {
+        <span class="logo-text">Manufacturing ERP</span>
+      }
+    </div>
+    <button class="collapse-btn" (click)="toggleCollapse.emit()">
+      <i [class]="collapsed ? 'pi pi-angle-right' : 'pi pi-angle-left'"></i>
+    </button>
+  </div>
+
+  <nav class="sidebar-nav">
+    @for (item of menuItems; track item.label) {
+      @if (!item.permission || hasPermission(item.permission)) {
+        <div class="nav-item-container">
+          @if (item.children) {
+            <button 
+              class="nav-item" 
+              [class.active]="isActive(item)"
+              (click)="toggleExpand(item)"
+            >
+              <i [class]="'pi ' + item.icon"></i>
+              @if (!collapsed) {
+                <span class="nav-label">{{ item.label }}</span>
+                <i [class]="item.expanded ? 'pi pi-chevron-down expand-icon' : 'pi pi-chevron-right expand-icon'"></i>
+              }
+            </button>
+            @if (item.expanded && !collapsed) {
+              <div class="nav-children">
+                @for (child of item.children; track child.label) {
+                  @if (!child.permission || hasPermission(child.permission)) {
+                    <a 
+                      [routerLink]="child.route" 
+                      routerLinkActive="active"
+                      class="nav-child"
+                    >
+                      <i [class]="'pi ' + child.icon"></i>
+                      <span class="nav-label">{{ child.label }}</span>
+                    </a>
+                  }
+                }
+              </div>
+            }
+          } @else {
+            <a 
+              [routerLink]="item.route" 
+              routerLinkActive="active"
+              class="nav-item"
+              [title]="collapsed ? item.label : ''"
+            >
+              <i [class]="'pi ' + item.icon"></i>
+              @if (!collapsed) {
+                <span class="nav-label">{{ item.label }}</span>
+              }
+            </a>
+          }
+        </div>
+      }
+    }
+  </nav>
+
+  <div class="sidebar-footer">
+    @if (!collapsed) {
+      <div class="version">v1.0.0</div>
+    }
+  </div>
+</aside>
+

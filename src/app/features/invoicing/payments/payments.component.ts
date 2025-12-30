@@ -11,106 +11,8 @@ import { DialogModule } from 'primeng/dialog';
   selector: 'app-payments',
   standalone: true,
   imports: [CommonModule, FormsModule, TableModule, ButtonModule, InputTextModule, TagModule, DialogModule],
-  template: `
-    <div class="page-container">
-      <div class="page-header">
-        <h1>Payments</h1>
-        <div class="header-actions">
-          <span class="p-input-icon-left">
-            <i class="pi pi-search"></i>
-            <input pInputText placeholder="Search payments..." [(ngModel)]="searchTerm" />
-          </span>
-          <button pButton label="Record Payment" icon="pi pi-plus" (click)="showDialog()"></button>
-        </div>
-      </div>
-
-      <div class="card">
-        <p-table 
-          [value]="payments()" 
-          [paginator]="true" 
-          [rows]="10"
-          styleClass="p-datatable-sm"
-        >
-          <ng-template pTemplate="header">
-            <tr>
-              <th>Payment ID</th>
-              <th>Date</th>
-              <th>Invoice</th>
-              <th>Customer</th>
-              <th>Amount</th>
-              <th>Method</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="body" let-payment>
-            <tr>
-              <td><strong>{{ payment.paymentId }}</strong></td>
-              <td>{{ payment.date }}</td>
-              <td>{{ payment.invoice }}</td>
-              <td>{{ payment.customer }}</td>
-              <td><strong>₹{{ payment.amount | number:'1.2-2' }}</strong></td>
-              <td>{{ payment.method }}</td>
-              <td>
-                <p-tag 
-                  [value]="payment.status" 
-                  [severity]="payment.status === 'Completed' ? 'success' : 'warning'"
-                />
-              </td>
-              <td>
-                <button pButton icon="pi pi-eye" class="p-button-text p-button-sm"></button>
-              </td>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="emptymessage">
-            <tr>
-              <td colspan="8" class="text-center py-4">
-                <i class="pi pi-wallet text-4xl text-gray-300"></i>
-                <p class="text-gray-500 mt-2">No payments found</p>
-              </td>
-            </tr>
-          </ng-template>
-        </p-table>
-      </div>
-
-      <p-dialog 
-        [(visible)]="dialogVisible" 
-        header="Record Payment"
-        [modal]="true"
-        [style]="{width: '500px'}"
-      >
-        <div class="form-grid">
-          <div class="form-field">
-            <label class="required">Invoice</label>
-            <input pInputText class="w-full" placeholder="Select invoice" />
-          </div>
-          <div class="form-field">
-            <label class="required">Amount</label>
-            <input pInputText type="number" class="w-full" />
-          </div>
-          <div class="form-field">
-            <label class="required">Payment Method</label>
-            <input pInputText class="w-full" placeholder="Cash/Bank/UPI" />
-          </div>
-          <div class="form-field">
-            <label>Reference No</label>
-            <input pInputText class="w-full" />
-          </div>
-        </div>
-        <ng-template pTemplate="footer">
-          <button pButton label="Cancel" class="p-button-text" (click)="dialogVisible = false"></button>
-          <button pButton label="Record"></button>
-        </ng-template>
-      </p-dialog>
-    </div>
-  `,
-  styles: [`
-    .header-actions {
-      display: flex;
-      gap: 1rem;
-      align-items: center;
-    }
-  `],
+  templateUrl: './payments.component.html',
+  styleUrl: './payments.component.scss',
 })
 export class PaymentsComponent implements OnInit {
   payments = signal<any[]>([]);
@@ -132,4 +34,3 @@ export class PaymentsComponent implements OnInit {
     this.dialogVisible = true;
   }
 }
-

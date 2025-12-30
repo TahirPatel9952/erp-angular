@@ -1,0 +1,89 @@
+<div class="page-container">
+  <div class="page-header">
+    <h1>Delivery Challans</h1>
+    <div class="header-actions">
+      <span class="p-input-icon-left">
+        <i class="pi pi-search"></i>
+        <input pInputText placeholder="Search challans..." [(ngModel)]="searchTerm" />
+      </span>
+      <button pButton label="Create Challan" icon="pi pi-plus" (click)="showDialog()"></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <p-table 
+      [value]="challans()" 
+      [paginator]="true" 
+      [rows]="10"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="Showing {first} to {last} of {totalRecords} entries"
+      styleClass="p-datatable-sm"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th pSortableColumn="challanNo">Challan No <p-sortIcon field="challanNo" /></th>
+          <th pSortableColumn="date">Date <p-sortIcon field="date" /></th>
+          <th>Customer</th>
+          <th>Sales Order</th>
+          <th>Items</th>
+          <th>Status</th>
+          <th style="width: 120px">Actions</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-challan>
+        <tr>
+          <td><strong>{{ challan.challanNo }}</strong></td>
+          <td>{{ challan.date }}</td>
+          <td>{{ challan.customer }}</td>
+          <td>{{ challan.salesOrder }}</td>
+          <td>{{ challan.itemCount }} items</td>
+          <td>
+            <p-tag 
+              [value]="challan.status" 
+              [severity]="challan.status === 'Delivered' ? 'success' : challan.status === 'In Transit' ? 'warning' : 'info'"
+            />
+          </td>
+          <td>
+            <button pButton icon="pi pi-eye" class="p-button-text p-button-sm"></button>
+            <button pButton icon="pi pi-print" class="p-button-text p-button-sm"></button>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="7" class="text-center py-4">
+            <i class="pi pi-inbox text-4xl text-gray-300"></i>
+            <p class="text-gray-500 mt-2">No challans found</p>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+
+  <p-dialog 
+    [(visible)]="dialogVisible" 
+    header="Create Delivery Challan"
+    [modal]="true"
+    [style]="{width: '600px'}"
+  >
+    <div class="form-grid">
+      <div class="form-field">
+        <label class="required">Sales Order</label>
+        <input pInputText class="w-full" placeholder="Select sales order" />
+      </div>
+      <div class="form-field">
+        <label class="required">Delivery Date</label>
+        <input pInputText type="date" class="w-full" />
+      </div>
+      <div class="form-field full-width">
+        <label>Remarks</label>
+        <input pInputText class="w-full" />
+      </div>
+    </div>
+    <ng-template pTemplate="footer">
+      <button pButton label="Cancel" class="p-button-text" (click)="dialogVisible = false"></button>
+      <button pButton label="Create"></button>
+    </ng-template>
+  </p-dialog>
+</div>
+

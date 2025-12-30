@@ -1,0 +1,91 @@
+<div class="page-container">
+  <div class="page-header">
+    <h1>Goods Receipt Notes (GRN)</h1>
+    <div class="header-actions">
+      <span class="p-input-icon-left">
+        <i class="pi pi-search"></i>
+        <input pInputText placeholder="Search GRNs..." [(ngModel)]="searchTerm" />
+      </span>
+      <button pButton label="Create GRN" icon="pi pi-plus" (click)="showDialog()"></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <p-table 
+      [value]="grns()" 
+      [paginator]="true" 
+      [rows]="10"
+      styleClass="p-datatable-sm"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th>GRN Number</th>
+          <th>Date</th>
+          <th>PO Reference</th>
+          <th>Supplier</th>
+          <th>Items</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-grn>
+        <tr>
+          <td><strong>{{ grn.grnNumber }}</strong></td>
+          <td>{{ grn.date }}</td>
+          <td>{{ grn.poReference }}</td>
+          <td>{{ grn.supplier }}</td>
+          <td>{{ grn.itemCount }} items</td>
+          <td>
+            <p-tag 
+              [value]="grn.status" 
+              [severity]="grn.status === 'Verified' ? 'success' : grn.status === 'QC Pending' ? 'warning' : 'info'"
+            />
+          </td>
+          <td>
+            <button pButton icon="pi pi-eye" class="p-button-text p-button-sm"></button>
+            <button pButton icon="pi pi-print" class="p-button-text p-button-sm"></button>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="7" class="text-center py-4">
+            <i class="pi pi-download text-4xl text-gray-300"></i>
+            <p class="text-gray-500 mt-2">No GRNs found</p>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+
+  <p-dialog 
+    [(visible)]="dialogVisible" 
+    header="Create GRN"
+    [modal]="true"
+    [style]="{width: '600px'}"
+  >
+    <div class="form-grid">
+      <div class="form-field">
+        <label class="required">Purchase Order</label>
+        <input pInputText class="w-full" placeholder="Select PO" />
+      </div>
+      <div class="form-field">
+        <label class="required">Receipt Date</label>
+        <input pInputText type="date" class="w-full" />
+      </div>
+      <div class="form-field">
+        <label>Invoice Number</label>
+        <input pInputText class="w-full" />
+      </div>
+      <div class="form-field">
+        <label>Vehicle Number</label>
+        <input pInputText class="w-full" />
+      </div>
+    </div>
+    <ng-template pTemplate="footer">
+      <button pButton label="Cancel" class="p-button-text" (click)="dialogVisible = false"></button>
+      <button pButton label="Create"></button>
+    </ng-template>
+  </p-dialog>
+</div>
+

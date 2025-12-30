@@ -11,119 +11,8 @@ import { DropdownModule } from 'primeng/dropdown';
   selector: 'app-gst-reports',
   standalone: true,
   imports: [CommonModule, FormsModule, TableModule, ButtonModule, InputTextModule, CardModule, DropdownModule],
-  template: `
-    <div class="page-container">
-      <div class="page-header">
-        <h1>GST Reports</h1>
-        <div class="header-actions">
-          <button pButton label="GSTR-1" icon="pi pi-file" class="p-button-outlined"></button>
-          <button pButton label="GSTR-3B" icon="pi pi-file" class="p-button-outlined"></button>
-          <button pButton label="Export" icon="pi pi-download" class="p-button-success"></button>
-        </div>
-      </div>
-
-      <div class="report-cards">
-        <p-card header="Output GST (Sales)" styleClass="report-card">
-          <div class="report-stat">
-            <span class="label">CGST</span>
-            <span class="value">₹{{ gstSummary().outputCGST | number:'1.0-0' }}</span>
-          </div>
-          <div class="report-stat">
-            <span class="label">SGST</span>
-            <span class="value">₹{{ gstSummary().outputSGST | number:'1.0-0' }}</span>
-          </div>
-          <div class="report-stat">
-            <span class="label">IGST</span>
-            <span class="value">₹{{ gstSummary().outputIGST | number:'1.0-0' }}</span>
-          </div>
-        </p-card>
-
-        <p-card header="Input GST (Purchase)" styleClass="report-card">
-          <div class="report-stat">
-            <span class="label">CGST</span>
-            <span class="value">₹{{ gstSummary().inputCGST | number:'1.0-0' }}</span>
-          </div>
-          <div class="report-stat">
-            <span class="label">SGST</span>
-            <span class="value">₹{{ gstSummary().inputSGST | number:'1.0-0' }}</span>
-          </div>
-          <div class="report-stat">
-            <span class="label">IGST</span>
-            <span class="value">₹{{ gstSummary().inputIGST | number:'1.0-0' }}</span>
-          </div>
-        </p-card>
-
-        <p-card header="Net GST Liability" styleClass="report-card">
-          <div class="report-stat">
-            <span class="label">CGST Payable</span>
-            <span class="value">₹{{ gstSummary().netCGST | number:'1.0-0' }}</span>
-          </div>
-          <div class="report-stat">
-            <span class="label">SGST Payable</span>
-            <span class="value">₹{{ gstSummary().netSGST | number:'1.0-0' }}</span>
-          </div>
-          <div class="report-stat">
-            <span class="label">IGST Payable</span>
-            <span class="value">₹{{ gstSummary().netIGST | number:'1.0-0' }}</span>
-          </div>
-        </p-card>
-      </div>
-
-      <div class="card mt-4">
-        <h3>HSN Summary</h3>
-        <p-table [value]="hsnData()" styleClass="p-datatable-sm">
-          <ng-template pTemplate="header">
-            <tr>
-              <th>HSN Code</th>
-              <th>Description</th>
-              <th>Taxable Value</th>
-              <th>CGST</th>
-              <th>SGST</th>
-              <th>IGST</th>
-              <th>Total Tax</th>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="body" let-item>
-            <tr>
-              <td><strong>{{ item.hsnCode }}</strong></td>
-              <td>{{ item.description }}</td>
-              <td>₹{{ item.taxableValue | number:'1.0-0' }}</td>
-              <td>₹{{ item.cgst | number:'1.0-0' }}</td>
-              <td>₹{{ item.sgst | number:'1.0-0' }}</td>
-              <td>₹{{ item.igst | number:'1.0-0' }}</td>
-              <td><strong>₹{{ item.totalTax | number:'1.0-0' }}</strong></td>
-            </tr>
-          </ng-template>
-        </p-table>
-      </div>
-    </div>
-  `,
-  styles: [`
-    .header-actions {
-      display: flex;
-      gap: 0.5rem;
-    }
-    .report-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1rem;
-    }
-    .report-stat {
-      display: flex;
-      justify-content: space-between;
-      padding: 0.5rem 0;
-      border-bottom: 1px solid var(--surface-border);
-    }
-    .report-stat:last-child {
-      border-bottom: none;
-    }
-    .report-stat .label {
-      color: var(--text-color-secondary);
-    }
-    .report-stat .value {
-      font-weight: 600;
-    }
-  `],
+  templateUrl: './gst-reports.component.html',
+  styleUrl: './gst-reports.component.scss',
 })
 export class GstReportsComponent implements OnInit {
   gstSummary = signal({
@@ -150,4 +39,3 @@ export class GstReportsComponent implements OnInit {
     ]);
   }
 }
-

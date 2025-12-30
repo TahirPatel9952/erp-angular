@@ -1,132 +1,220 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { TagModule } from 'primeng/tag';
 import { DialogModule } from 'primeng/dialog';
+import { DropdownModule } from 'primeng/dropdown';
+import { ToastrService } from 'ngx-toastr';
+import { BOMService, FinishedGoodsService } from '../../../core/services';
+import { BOM, BOMRequest } from '../../../core/models';
 
 @Component({
   selector: 'app-bom',
   standalone: true,
-  imports: [CommonModule, FormsModule, TableModule, ButtonModule, InputTextModule, TagModule, DialogModule],
-  template: `
-    <div class="page-container">
-      <div class="page-header">
-        <h1>Bill of Materials</h1>
-        <div class="header-actions">
-          <span class="p-input-icon-left">
-            <i class="pi pi-search"></i>
-            <input pInputText placeholder="Search BOMs..." [(ngModel)]="searchTerm" />
-          </span>
-          <button pButton label="Create BOM" icon="pi pi-plus" (click)="showDialog()"></button>
-        </div>
-      </div>
-
-      <div class="card">
-        <p-table 
-          [value]="boms()" 
-          [paginator]="true" 
-          [rows]="10"
-          styleClass="p-datatable-sm"
-        >
-          <ng-template pTemplate="header">
-            <tr>
-              <th>BOM Code</th>
-              <th>Product</th>
-              <th>Version</th>
-              <th>Components</th>
-              <th>Unit Cost</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="body" let-bom>
-            <tr>
-              <td><strong>{{ bom.code }}</strong></td>
-              <td>{{ bom.product }}</td>
-              <td>v{{ bom.version }}</td>
-              <td>{{ bom.componentCount }} items</td>
-              <td>₹{{ bom.unitCost | number:'1.2-2' }}</td>
-              <td>
-                <p-tag 
-                  [value]="bom.status" 
-                  [severity]="bom.status === 'Active' ? 'success' : bom.status === 'Draft' ? 'warning' : 'danger'"
-                />
-              </td>
-              <td>
-                <button pButton icon="pi pi-eye" class="p-button-text p-button-sm"></button>
-                <button pButton icon="pi pi-pencil" class="p-button-text p-button-sm"></button>
-                <button pButton icon="pi pi-copy" class="p-button-text p-button-sm"></button>
-              </td>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="emptymessage">
-            <tr>
-              <td colspan="7" class="text-center py-4">
-                <i class="pi pi-sitemap text-4xl text-gray-300"></i>
-                <p class="text-gray-500 mt-2">No BOMs found</p>
-              </td>
-            </tr>
-          </ng-template>
-        </p-table>
-      </div>
-
-      <p-dialog 
-        [(visible)]="dialogVisible" 
-        header="Create Bill of Materials"
-        [modal]="true"
-        [style]="{width: '600px'}"
-      >
-        <div class="form-grid">
-          <div class="form-field">
-            <label class="required">Product</label>
-            <input pInputText class="w-full" placeholder="Select product" />
-          </div>
-          <div class="form-field">
-            <label class="required">Version</label>
-            <input pInputText class="w-full" value="1.0" />
-          </div>
-          <div class="form-field full-width">
-            <label>Description</label>
-            <input pInputText class="w-full" />
-          </div>
-        </div>
-        <ng-template pTemplate="footer">
-          <button pButton label="Cancel" class="p-button-text" (click)="dialogVisible = false"></button>
-          <button pButton label="Create"></button>
-        </ng-template>
-      </p-dialog>
-    </div>
-  `,
-  styles: [`
-    .header-actions {
-      display: flex;
-      gap: 1rem;
-      align-items: center;
-    }
-  `],
+  imports: [
+    CommonModule, 
+    FormsModule, 
+    ReactiveFormsModule,
+    TableModule, 
+    ButtonModule, 
+    InputTextModule, 
+    TagModule, 
+    DialogModule,
+    DropdownModule
+  ],
+  templateUrl: './bom.component.html',
+  styleUrl: './bom.component.scss',
 })
 export class BomComponent implements OnInit {
-  boms = signal<any[]>([]);
+  private fb = inject(FormBuilder);
+  private toastr = inject(ToastrService);
+  private bomService = inject(BOMService);
+  private finishedGoodsService = inject(FinishedGoodsService);
+
+  boms = signal<BOM[]>([]);
+  finishedGoods = signal<any[]>([]);
+  loading = signal(false);
   searchTerm = '';
   dialogVisible = false;
+  isEditing = false;
+  selectedBom: BOM | null = null;
+
+  totalRecords = 0;
+  rows = 10;
+  first = 0;
+
+  bomForm: FormGroup = this.fb.group({
+    code: ['', [Validators.required]],
+    name: ['', [Validators.required]],
+    description: [''],
+    finishedGoodsId: [null, [Validators.required]],
+    version: ['1.0'],
+    quantity: [1, [Validators.required, Validators.min(1)]],
+    unitId: [null],
+    laborCost: [0],
+    overheadCost: [0],
+    notes: ['']
+  });
+
+  statusOptions = [
+    { label: 'Draft', value: 'DRAFT' },
+    { label: 'Active', value: 'ACTIVE' },
+    { label: 'Inactive', value: 'INACTIVE' }
+  ];
 
   ngOnInit(): void {
     this.loadBoms();
+    this.loadFinishedGoods();
   }
 
   loadBoms(): void {
-    this.boms.set([
-      { id: 1, code: 'BOM-001', product: 'Motor Assembly A', version: '1.2', componentCount: 15, unitCost: 2500, status: 'Active' },
-      { id: 2, code: 'BOM-002', product: 'Gear Box Standard', version: '2.0', componentCount: 22, unitCost: 4800, status: 'Active' },
-      { id: 3, code: 'BOM-003', product: 'Shaft Assembly', version: '1.0', componentCount: 8, unitCost: 850, status: 'Draft' },
-    ]);
+    this.loading.set(true);
+    this.bomService.getAll({ page: this.first / this.rows, size: this.rows }).subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.boms.set(response.data.content);
+          this.totalRecords = response.data.totalElements;
+        }
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.toastr.error('Failed to load BOMs');
+      }
+    });
+  }
+
+  loadFinishedGoods(): void {
+    this.finishedGoodsService.getAllActive().subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.finishedGoods.set(response.data.map(fg => ({ 
+            label: `${fg.code} - ${fg.name}`, 
+            value: fg.id 
+          })));
+        }
+      }
+    });
+  }
+
+  onSearch(): void {
+    if (this.searchTerm.trim()) {
+      this.bomService.search(this.searchTerm, { page: 0, size: this.rows }).subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            this.boms.set(response.data.content);
+            this.totalRecords = response.data.totalElements;
+          }
+        }
+      });
+    } else {
+      this.loadBoms();
+    }
+  }
+
+  onPageChange(event: any): void {
+    this.first = event.first;
+    this.rows = event.rows;
+    this.loadBoms();
   }
 
   showDialog(): void {
+    this.isEditing = false;
+    this.selectedBom = null;
+    this.bomForm.reset({ version: '1.0', quantity: 1, laborCost: 0, overheadCost: 0 });
     this.dialogVisible = true;
   }
-}
 
+  editBom(bom: BOM): void {
+    this.isEditing = true;
+    this.selectedBom = bom;
+    this.bomForm.patchValue({
+      code: bom.code,
+      name: bom.name,
+      description: bom.description,
+      finishedGoodsId: bom.finishedGoodsId,
+      version: bom.version,
+      quantity: bom.quantity,
+      unitId: bom.unitId,
+      laborCost: bom.laborCost,
+      overheadCost: bom.overheadCost,
+      notes: bom.notes
+    });
+    this.dialogVisible = true;
+  }
+
+  saveBom(): void {
+    if (this.bomForm.invalid) {
+      this.bomForm.markAllAsTouched();
+      return;
+    }
+
+    const request: BOMRequest = this.bomForm.value;
+
+    if (this.isEditing && this.selectedBom) {
+      this.bomService.update(this.selectedBom.id, request).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.toastr.success('BOM updated successfully');
+            this.dialogVisible = false;
+            this.loadBoms();
+          }
+        },
+        error: () => this.toastr.error('Failed to update BOM')
+      });
+    } else {
+      this.bomService.create(request).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.toastr.success('BOM created successfully');
+            this.dialogVisible = false;
+            this.loadBoms();
+          }
+        },
+        error: () => this.toastr.error('Failed to create BOM')
+      });
+    }
+  }
+
+  deleteBom(bom: BOM): void {
+    if (confirm(`Are you sure you want to delete BOM ${bom.code}?`)) {
+      this.bomService.delete(bom.id).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.toastr.success('BOM deleted successfully');
+            this.loadBoms();
+          }
+        },
+        error: () => this.toastr.error('Failed to delete BOM')
+      });
+    }
+  }
+
+  duplicateBom(bom: BOM): void {
+    const newVersion = prompt('Enter new version number:', `${parseFloat(bom.version) + 0.1}`);
+    if (newVersion) {
+      this.bomService.duplicate(bom.id, newVersion).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.toastr.success('BOM duplicated successfully');
+            this.loadBoms();
+          }
+        },
+        error: () => this.toastr.error('Failed to duplicate BOM')
+      });
+    }
+  }
+
+  getStatusSeverity(status: string): 'success' | 'warning' | 'danger' | 'info' {
+    switch (status) {
+      case 'ACTIVE': return 'success';
+      case 'DRAFT': return 'warning';
+      case 'INACTIVE':
+      case 'OBSOLETE': return 'danger';
+      default: return 'info';
+    }
+  }
+}

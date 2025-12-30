@@ -11,80 +11,8 @@ import { ProgressBarModule } from 'primeng/progressbar';
   selector: 'app-sales-tracking',
   standalone: true,
   imports: [CommonModule, FormsModule, TableModule, ButtonModule, InputTextModule, TagModule, ProgressBarModule],
-  template: `
-    <div class="page-container">
-      <div class="page-header">
-        <h1>Sales Order Tracking</h1>
-        <div class="header-actions">
-          <span class="p-input-icon-left">
-            <i class="pi pi-search"></i>
-            <input pInputText placeholder="Search by order..." [(ngModel)]="searchTerm" />
-          </span>
-        </div>
-      </div>
-
-      <div class="card">
-        <p-table 
-          [value]="trackingData()" 
-          [paginator]="true" 
-          [rows]="10"
-          styleClass="p-datatable-sm"
-        >
-          <ng-template pTemplate="header">
-            <tr>
-              <th>Order No</th>
-              <th>Customer</th>
-              <th>Order Date</th>
-              <th>Delivery Date</th>
-              <th>Production</th>
-              <th>Delivery</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="body" let-item>
-            <tr>
-              <td><strong>{{ item.orderNo }}</strong></td>
-              <td>{{ item.customer }}</td>
-              <td>{{ item.orderDate }}</td>
-              <td>{{ item.deliveryDate }}</td>
-              <td style="width: 120px">
-                <p-progressBar [value]="item.productionProgress" [showValue]="true"></p-progressBar>
-              </td>
-              <td style="width: 120px">
-                <p-progressBar [value]="item.deliveryProgress" [showValue]="true"></p-progressBar>
-              </td>
-              <td>
-                <p-tag 
-                  [value]="item.status" 
-                  [severity]="item.status === 'Completed' ? 'success' : item.status === 'Delayed' ? 'danger' : 'warning'"
-                />
-              </td>
-              <td>
-                <button pButton icon="pi pi-eye" class="p-button-text p-button-sm"></button>
-                <button pButton icon="pi pi-history" class="p-button-text p-button-sm"></button>
-              </td>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="emptymessage">
-            <tr>
-              <td colspan="8" class="text-center py-4">
-                <i class="pi pi-map-marker text-4xl text-gray-300"></i>
-                <p class="text-gray-500 mt-2">No orders to track</p>
-              </td>
-            </tr>
-          </ng-template>
-        </p-table>
-      </div>
-    </div>
-  `,
-  styles: [`
-    .header-actions {
-      display: flex;
-      gap: 1rem;
-      align-items: center;
-    }
-  `],
+  templateUrl: './sales-tracking.component.html',
+  styleUrl: './sales-tracking.component.scss',
 })
 export class SalesTrackingComponent implements OnInit {
   trackingData = signal<any[]>([]);
@@ -102,4 +30,3 @@ export class SalesTrackingComponent implements OnInit {
     ]);
   }
 }
-

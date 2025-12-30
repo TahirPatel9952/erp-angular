@@ -1,168 +1,251 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { TagModule } from 'primeng/tag';
 import { DialogModule } from 'primeng/dialog';
+import { DropdownModule } from 'primeng/dropdown';
+import { InputNumberModule } from 'primeng/inputnumber';
 import { ToastrService } from 'ngx-toastr';
+import { RawMaterialService, CategoryService, UnitService, SupplierService } from '../../../core/services';
+import { RawMaterial, RawMaterialRequest } from '../../../core/models';
 
 @Component({
   selector: 'app-raw-materials',
   standalone: true,
-  imports: [CommonModule, FormsModule, TableModule, ButtonModule, InputTextModule, TagModule, DialogModule],
-  template: `
-    <div class="page-container">
-      <div class="page-header">
-        <h1>Raw Materials</h1>
-        <div class="header-actions">
-          <span class="p-input-icon-left">
-            <i class="pi pi-search"></i>
-            <input pInputText placeholder="Search..." [(ngModel)]="searchTerm" (input)="onSearch()" />
-          </span>
-          <button pButton label="Add Material" icon="pi pi-plus" (click)="showDialog()"></button>
-        </div>
-      </div>
-
-      <div class="card">
-        <p-table 
-          [value]="materials()" 
-          [paginator]="true" 
-          [rows]="10"
-          [showCurrentPageReport]="true"
-          currentPageReportTemplate="Showing {first} to {last} of {totalRecords} entries"
-          [rowsPerPageOptions]="[10, 25, 50]"
-          styleClass="p-datatable-sm"
-        >
-          <ng-template pTemplate="header">
-            <tr>
-              <th pSortableColumn="code">Code <p-sortIcon field="code" /></th>
-              <th pSortableColumn="name">Name <p-sortIcon field="name" /></th>
-              <th>Category</th>
-              <th>Unit</th>
-              <th>Stock</th>
-              <th>Reorder Level</th>
-              <th>Status</th>
-              <th style="width: 120px">Actions</th>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="body" let-material>
-            <tr>
-              <td><strong>{{ material.code }}</strong></td>
-              <td>{{ material.name }}</td>
-              <td>{{ material.category }}</td>
-              <td>{{ material.unit }}</td>
-              <td [class.text-error]="material.stock < material.reorderLevel">
-                {{ material.stock }}
-              </td>
-              <td>{{ material.reorderLevel }}</td>
-              <td>
-                <p-tag 
-                  [value]="material.isActive ? 'Active' : 'Inactive'" 
-                  [severity]="material.isActive ? 'success' : 'danger'"
-                />
-              </td>
-              <td>
-                <button pButton icon="pi pi-pencil" class="p-button-text p-button-sm" (click)="editMaterial(material)"></button>
-                <button pButton icon="pi pi-trash" class="p-button-text p-button-sm p-button-danger" (click)="deleteMaterial(material)"></button>
-              </td>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="emptymessage">
-            <tr>
-              <td colspan="8" class="text-center py-4">
-                <i class="pi pi-inbox text-4xl text-gray-300"></i>
-                <p class="text-gray-500 mt-2">No raw materials found</p>
-              </td>
-            </tr>
-          </ng-template>
-        </p-table>
-      </div>
-
-      <p-dialog 
-        [(visible)]="dialogVisible" 
-        [header]="isEditing ? 'Edit Raw Material' : 'Add Raw Material'"
-        [modal]="true"
-        [style]="{width: '500px'}"
-      >
-        <div class="form-grid">
-          <div class="form-field">
-            <label class="required">Code</label>
-            <input pInputText class="w-full" />
-          </div>
-          <div class="form-field">
-            <label class="required">Name</label>
-            <input pInputText class="w-full" />
-          </div>
-          <div class="form-field">
-            <label>Category</label>
-            <input pInputText class="w-full" />
-          </div>
-          <div class="form-field">
-            <label class="required">Unit</label>
-            <input pInputText class="w-full" />
-          </div>
-        </div>
-        <ng-template pTemplate="footer">
-          <button pButton label="Cancel" class="p-button-text" (click)="dialogVisible = false"></button>
-          <button pButton label="Save" (click)="saveMaterial()"></button>
-        </ng-template>
-      </p-dialog>
-    </div>
-  `,
-  styles: [`
-    .header-actions {
-      display: flex;
-      gap: 1rem;
-      align-items: center;
-    }
-  `],
+  imports: [
+    CommonModule, 
+    FormsModule, 
+    ReactiveFormsModule,
+    TableModule, 
+    ButtonModule, 
+    InputTextModule, 
+    TagModule, 
+    DialogModule,
+    DropdownModule,
+    InputNumberModule
+  ],
+  templateUrl: './raw-materials.component.html',
+  styleUrl: './raw-materials.component.scss',
 })
 export class RawMaterialsComponent implements OnInit {
+  private fb = inject(FormBuilder);
   private toastr = inject(ToastrService);
+  private rawMaterialService = inject(RawMaterialService);
+  private categoryService = inject(CategoryService);
+  private unitService = inject(UnitService);
+  private supplierService = inject(SupplierService);
 
-  materials = signal<any[]>([]);
+  materials = signal<RawMaterial[]>([]);
+  categories = signal<any[]>([]);
+  units = signal<any[]>([]);
+  suppliers = signal<any[]>([]);
+  
+  loading = signal(false);
   searchTerm = '';
   dialogVisible = false;
   isEditing = false;
+  selectedMaterial: RawMaterial | null = null;
+  
+  // Pagination
+  totalRecords = 0;
+  rows = 10;
+  first = 0;
+
+  materialForm: FormGroup = this.fb.group({
+    code: ['', [Validators.required]],
+    name: ['', [Validators.required]],
+    description: [''],
+    categoryId: [null],
+    unitId: [null, [Validators.required]],
+    hsnCode: [''],
+    unitPrice: [0, [Validators.required, Validators.min(0)]],
+    reorderLevel: [0],
+    reorderQuantity: [0],
+    leadTimeDays: [0],
+    taxPercent: [18],
+    supplierId: [null],
+    barcode: [''],
+    isActive: [true]
+  });
 
   ngOnInit(): void {
     this.loadMaterials();
+    this.loadCategories();
+    this.loadUnits();
+    this.loadSuppliers();
   }
 
   loadMaterials(): void {
-    // Mock data - replace with actual API call
-    this.materials.set([
-      { id: 1, code: 'RM-001', name: 'Steel Rod 10mm', category: 'Metals', unit: 'Kg', stock: 500, reorderLevel: 100, isActive: true },
-      { id: 2, code: 'RM-002', name: 'Copper Wire', category: 'Metals', unit: 'Meter', stock: 25, reorderLevel: 50, isActive: true },
-      { id: 3, code: 'RM-003', name: 'Plastic Granules', category: 'Plastics', unit: 'Kg', stock: 200, reorderLevel: 150, isActive: true },
-      { id: 4, code: 'RM-004', name: 'Bearing SKF', category: 'Components', unit: 'Pcs', stock: 15, reorderLevel: 30, isActive: true },
-      { id: 5, code: 'RM-005', name: 'Motor Oil', category: 'Consumables', unit: 'Liter', stock: 10, reorderLevel: 25, isActive: false },
-    ]);
+    this.loading.set(true);
+    this.rawMaterialService.getAll({ 
+      page: this.first / this.rows, 
+      size: this.rows 
+    }).subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.materials.set(response.data.content);
+          this.totalRecords = response.data.totalElements;
+        }
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.toastr.error('Failed to load materials');
+      }
+    });
+  }
+
+  loadCategories(): void {
+    this.categoryService.getByType('RAW_MATERIAL').subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.categories.set(response.data.map(c => ({ label: c.name, value: c.id })));
+        }
+      }
+    });
+  }
+
+  loadUnits(): void {
+    this.unitService.getAllActive().subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.units.set(response.data.map(u => ({ label: `${u.name} (${u.symbol})`, value: u.id })));
+        }
+      }
+    });
+  }
+
+  loadSuppliers(): void {
+    this.supplierService.getAllActive().subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.suppliers.set(response.data.map(s => ({ label: s.name, value: s.id })));
+        }
+      }
+    });
   }
 
   onSearch(): void {
-    // Implement search
+    if (this.searchTerm.trim()) {
+      this.rawMaterialService.search(this.searchTerm, { page: 0, size: this.rows }).subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            this.materials.set(response.data.content);
+            this.totalRecords = response.data.totalElements;
+          }
+        }
+      });
+    } else {
+      this.loadMaterials();
+    }
+  }
+
+  onPageChange(event: any): void {
+    this.first = event.first;
+    this.rows = event.rows;
+    this.loadMaterials();
   }
 
   showDialog(): void {
     this.isEditing = false;
+    this.selectedMaterial = null;
+    this.materialForm.reset({ isActive: true, taxPercent: 18 });
     this.dialogVisible = true;
   }
 
-  editMaterial(material: any): void {
+  editMaterial(material: RawMaterial): void {
     this.isEditing = true;
+    this.selectedMaterial = material;
+    this.materialForm.patchValue({
+      code: material.code,
+      name: material.name,
+      description: material.description,
+      categoryId: material.categoryId,
+      unitId: material.unitId,
+      hsnCode: material.hsnCode,
+      unitPrice: material.unitPrice,
+      reorderLevel: material.reorderLevel,
+      reorderQuantity: material.reorderQuantity,
+      leadTimeDays: material.leadTimeDays,
+      taxPercent: material.taxPercent,
+      supplierId: material.supplierId,
+      barcode: material.barcode,
+      isActive: material.isActive
+    });
     this.dialogVisible = true;
   }
 
   saveMaterial(): void {
-    this.toastr.success('Material saved successfully');
-    this.dialogVisible = false;
+    if (this.materialForm.invalid) {
+      this.materialForm.markAllAsTouched();
+      return;
+    }
+
+    const request: RawMaterialRequest = this.materialForm.value;
+
+    if (this.isEditing && this.selectedMaterial) {
+      this.rawMaterialService.update(this.selectedMaterial.id, request).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.toastr.success('Material updated successfully');
+            this.dialogVisible = false;
+            this.loadMaterials();
+          }
+        },
+        error: () => {
+          this.toastr.error('Failed to update material');
+        }
+      });
+    } else {
+      this.rawMaterialService.create(request).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.toastr.success('Material created successfully');
+            this.dialogVisible = false;
+            this.loadMaterials();
+          }
+        },
+        error: () => {
+          this.toastr.error('Failed to create material');
+        }
+      });
+    }
   }
 
-  deleteMaterial(material: any): void {
-    this.toastr.success('Material deleted successfully');
+  deleteMaterial(material: RawMaterial): void {
+    if (confirm(`Are you sure you want to delete ${material.name}?`)) {
+      this.rawMaterialService.delete(material.id).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.toastr.success('Material deleted successfully');
+            this.loadMaterials();
+          }
+        },
+        error: () => {
+          this.toastr.error('Failed to delete material');
+        }
+      });
+    }
+  }
+
+  toggleStatus(material: RawMaterial): void {
+    const action = material.isActive ? 
+      this.rawMaterialService.deactivate(material.id) : 
+      this.rawMaterialService.activate(material.id);
+
+    action.subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.toastr.success(`Material ${material.isActive ? 'deactivated' : 'activated'} successfully`);
+          this.loadMaterials();
+        }
+      },
+      error: () => {
+        this.toastr.error('Failed to update status');
+      }
+    });
   }
 }
-

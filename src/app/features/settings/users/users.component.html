@@ -1,0 +1,225 @@
+<p-toast />
+<p-confirmDialog />
+
+<div class="page-container">
+  <div class="page-header">
+    <h1>User Management</h1>
+    <div class="header-actions">
+      <span class="p-input-icon-left">
+        <i class="pi pi-search"></i>
+        <input pInputText placeholder="Search users..." [(ngModel)]="searchTerm" (input)="onSearch()" />
+      </span>
+      <button pButton label="Add User" icon="pi pi-plus" (click)="showDialog()"></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <p-table
+      [value]="users()"
+      [paginator]="true"
+      [rows]="10"
+      [loading]="loading()"
+      [totalRecords]="totalRecords()"
+      [lazy]="true"
+      (onLazyLoad)="loadUsers($event)"
+      styleClass="p-datatable-sm p-datatable-striped"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th pSortableColumn="username">Username <p-sortIcon field="username" /></th>
+          <th pSortableColumn="email">Email <p-sortIcon field="email" /></th>
+          <th>Full Name</th>
+          <th>Role</th>
+          <th>Last Login</th>
+          <th>Status</th>
+          <th style="width: 150px">Actions</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-user>
+        <tr>
+          <td>
+            <div class="user-info">
+              <span class="avatar">{{ user.firstName?.charAt(0) || user.username.charAt(0) | uppercase }}</span>
+              <strong>{{ user.username }}</strong>
+            </div>
+          </td>
+          <td>{{ user.email }}</td>
+          <td>{{ user.fullName || (user.firstName || '') + ' ' + (user.lastName || '') || '-' }}</td>
+          <td>
+            <p-tag [value]="user.roleName" [severity]="getRoleSeverity(user.roleName)" />
+          </td>
+          <td>
+            @if (user.lastLoginAt) {
+              {{ user.lastLoginAt | date : 'short' }}
+            } @else {
+              <span class="text-muted">Never</span>
+            }
+          </td>
+          <td>
+            <p-tag
+              [value]="user.isActive ? 'Active' : 'Inactive'"
+              [severity]="user.isActive ? 'success' : 'danger'"
+            />
+          </td>
+          <td>
+            <div class="action-buttons">
+              <button
+                pButton
+                icon="pi pi-pencil"
+                class="p-button-text p-button-sm p-button-rounded"
+                pTooltip="Edit"
+                (click)="editUser(user)"
+              ></button>
+              <button
+                pButton
+                icon="pi pi-key"
+                class="p-button-text p-button-sm p-button-rounded"
+                pTooltip="Reset Password"
+                (click)="showResetPassword(user)"
+              ></button>
+              <button
+                pButton
+                icon="pi pi-trash"
+                class="p-button-text p-button-sm p-button-rounded p-button-danger"
+                pTooltip="Delete"
+                (click)="confirmDelete(user)"
+              ></button>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="7" class="empty-message">
+            <i class="pi pi-users"></i>
+            <p>No users found</p>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+</div>
+
+<!-- User Dialog -->
+<p-dialog
+  [(visible)]="dialogVisible"
+  [header]="editMode ? 'Edit User' : 'Add User'"
+  [modal]="true"
+  [style]="{ width: '500px' }"
+  [draggable]="false"
+  [resizable]="false"
+>
+  <form [formGroup]="userForm" class="form-grid">
+    <div class="form-field">
+      <label for="username" class="required">Username</label>
+      <input id="username" pInputText formControlName="username" class="w-full" />
+    </div>
+
+    <div class="form-field">
+      <label for="email" class="required">Email</label>
+      <input id="email" pInputText formControlName="email" type="email" class="w-full" />
+    </div>
+
+    <div class="form-field">
+      <label for="firstName">First Name</label>
+      <input id="firstName" pInputText formControlName="firstName" class="w-full" />
+    </div>
+
+    <div class="form-field">
+      <label for="lastName">Last Name</label>
+      <input id="lastName" pInputText formControlName="lastName" class="w-full" />
+    </div>
+
+    <div class="form-field">
+      <label for="phone">Phone</label>
+      <input id="phone" pInputText formControlName="phone" class="w-full" />
+    </div>
+
+    <div class="form-field">
+      <label for="role" class="required">Role</label>
+      <p-dropdown
+        id="role"
+        formControlName="roleId"
+        [options]="roles"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="Select Role"
+        class="w-full"
+      />
+    </div>
+
+    @if (!editMode) {
+      <div class="form-field full-width">
+        <label for="password" class="required">Password</label>
+        <p-password
+          id="password"
+          formControlName="password"
+          [toggleMask]="true"
+          [feedback]="true"
+          styleClass="w-full"
+          inputStyleClass="w-full"
+        />
+        @if (userForm.get('password')?.invalid && userForm.get('password')?.touched) {
+          <small class="p-error">Password must be at least 6 characters</small>
+        }
+      </div>
+    }
+  </form>
+
+  <ng-template pTemplate="footer">
+    <div class="dialog-footer">
+      <button pButton label="Cancel" class="p-button-text" icon="pi pi-times" (click)="closeDialog()"></button>
+      <button
+        pButton
+        label="Save"
+        icon="pi pi-check"
+        [loading]="saving()"
+        [disabled]="userForm.invalid"
+        (click)="saveUser()"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- Reset Password Dialog -->
+<p-dialog
+  [(visible)]="resetPasswordVisible"
+  header="Reset Password"
+  [modal]="true"
+  [style]="{ width: '400px' }"
+  [draggable]="false"
+  [resizable]="false"
+>
+  <div class="reset-password-content">
+    <p class="info-text">
+      <i class="pi pi-info-circle"></i>
+      Resetting password for <strong>{{ selectedUser?.username }}</strong>
+    </p>
+    <div class="form-field">
+      <label for="newPassword" class="required">New Password</label>
+      <p-password
+        id="newPassword"
+        [(ngModel)]="newPassword"
+        [toggleMask]="true"
+        [feedback]="true"
+        styleClass="w-full"
+        inputStyleClass="w-full"
+      />
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="dialog-footer">
+      <button pButton label="Cancel" class="p-button-text" icon="pi pi-times" (click)="closeResetPasswordDialog()"></button>
+      <button
+        pButton
+        label="Reset Password"
+        icon="pi pi-key"
+        [loading]="saving()"
+        [disabled]="!newPassword || newPassword.length < 6"
+        (click)="resetPassword()"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>
+

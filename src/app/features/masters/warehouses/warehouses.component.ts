@@ -1,139 +1,233 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
+import { InputTextareaModule } from 'primeng/inputtextarea';
 import { TagModule } from 'primeng/tag';
 import { DialogModule } from 'primeng/dialog';
+import { DropdownModule } from 'primeng/dropdown';
+import { ToastModule } from 'primeng/toast';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { TooltipModule } from 'primeng/tooltip';
+import { MessageService, ConfirmationService } from 'primeng/api';
+import { WarehouseService } from '../../../core/services';
+import { Warehouse, WarehouseRequest } from '../../../core/models';
 
 @Component({
   selector: 'app-warehouses',
   standalone: true,
-  imports: [CommonModule, FormsModule, TableModule, ButtonModule, InputTextModule, TagModule, DialogModule],
-  template: `
-    <div class="page-container">
-      <div class="page-header">
-        <h1>Warehouses</h1>
-        <div class="header-actions">
-          <span class="p-input-icon-left">
-            <i class="pi pi-search"></i>
-            <input pInputText placeholder="Search..." [(ngModel)]="searchTerm" />
-          </span>
-          <button pButton label="Add Warehouse" icon="pi pi-plus" (click)="showDialog()"></button>
-        </div>
-      </div>
-
-      <div class="card">
-        <p-table 
-          [value]="warehouses()" 
-          [paginator]="true" 
-          [rows]="10"
-          styleClass="p-datatable-sm"
-        >
-          <ng-template pTemplate="header">
-            <tr>
-              <th>Code</th>
-              <th>Name</th>
-              <th>Location</th>
-              <th>Capacity</th>
-              <th>Manager</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="body" let-warehouse>
-            <tr>
-              <td><strong>{{ warehouse.code }}</strong></td>
-              <td>{{ warehouse.name }}</td>
-              <td>{{ warehouse.location }}</td>
-              <td>{{ warehouse.capacity }}</td>
-              <td>{{ warehouse.manager }}</td>
-              <td>
-                <p-tag 
-                  [value]="warehouse.isActive ? 'Active' : 'Inactive'" 
-                  [severity]="warehouse.isActive ? 'success' : 'danger'"
-                />
-              </td>
-              <td>
-                <button pButton icon="pi pi-pencil" class="p-button-text p-button-sm"></button>
-                <button pButton icon="pi pi-trash" class="p-button-text p-button-sm p-button-danger"></button>
-              </td>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="emptymessage">
-            <tr>
-              <td colspan="7" class="text-center py-4">
-                <i class="pi pi-building text-4xl text-gray-300"></i>
-                <p class="text-gray-500 mt-2">No warehouses found</p>
-              </td>
-            </tr>
-          </ng-template>
-        </p-table>
-      </div>
-
-      <p-dialog 
-        [(visible)]="dialogVisible" 
-        header="Add Warehouse"
-        [modal]="true"
-        [style]="{width: '500px'}"
-      >
-        <div class="form-grid">
-          <div class="form-field">
-            <label class="required">Code</label>
-            <input pInputText class="w-full" />
-          </div>
-          <div class="form-field">
-            <label class="required">Name</label>
-            <input pInputText class="w-full" />
-          </div>
-          <div class="form-field full-width">
-            <label class="required">Location</label>
-            <input pInputText class="w-full" />
-          </div>
-          <div class="form-field">
-            <label>Capacity</label>
-            <input pInputText class="w-full" />
-          </div>
-          <div class="form-field">
-            <label>Manager</label>
-            <input pInputText class="w-full" />
-          </div>
-        </div>
-        <ng-template pTemplate="footer">
-          <button pButton label="Cancel" class="p-button-text" (click)="dialogVisible = false"></button>
-          <button pButton label="Save"></button>
-        </ng-template>
-      </p-dialog>
-    </div>
-  `,
-  styles: [`
-    .header-actions {
-      display: flex;
-      gap: 1rem;
-      align-items: center;
-    }
-  `],
+  imports: [
+    CommonModule, 
+    FormsModule, 
+    ReactiveFormsModule,
+    TableModule, 
+    ButtonModule, 
+    InputTextModule,
+    InputTextareaModule, 
+    TagModule, 
+    DialogModule,
+    DropdownModule,
+    ToastModule,
+    ConfirmDialogModule,
+    TooltipModule
+  ],
+  providers: [MessageService, ConfirmationService],
+  templateUrl: './warehouses.component.html',
+  styleUrl: './warehouses.component.scss',
 })
 export class WarehousesComponent implements OnInit {
-  warehouses = signal<any[]>([]);
+  private fb = inject(FormBuilder);
+  private messageService = inject(MessageService);
+  private confirmationService = inject(ConfirmationService);
+  private warehouseService = inject(WarehouseService);
+
+  warehouses = signal<Warehouse[]>([]);
+  loading = signal(false);
+  saving = signal(false);
+  totalRecords = signal(0);
+  
   searchTerm = '';
   dialogVisible = false;
+  editMode = false;
+  selectedWarehouse: Warehouse | null = null;
+  rows = 10;
+  first = 0;
+
+  warehouseForm: FormGroup = this.fb.group({
+    code: ['', [Validators.required]],
+    name: ['', [Validators.required]],
+    type: ['MAIN', [Validators.required]],
+    address: [''],
+    city: [''],
+    state: [''],
+    pincode: [''],
+    contactPerson: [''],
+    contactPhone: [''],
+    contactEmail: ['', [Validators.email]],
+    isActive: [true]
+  });
+
+  warehouseTypes = [
+    { label: 'Main Warehouse', value: 'MAIN' },
+    { label: 'Raw Material Store', value: 'RAW_MATERIAL' },
+    { label: 'Finished Goods Store', value: 'FINISHED_GOODS' },
+    { label: 'Work in Progress', value: 'WIP' },
+    { label: 'Transit', value: 'TRANSIT' },
+    { label: 'Scrap', value: 'SCRAP' }
+  ];
 
   ngOnInit(): void {
     this.loadWarehouses();
   }
 
-  loadWarehouses(): void {
-    this.warehouses.set([
-      { id: 1, code: 'WH-MAIN', name: 'Main Warehouse', location: 'Mumbai', capacity: '10000 sq ft', manager: 'Rajesh Kumar', isActive: true },
-      { id: 2, code: 'WH-B', name: 'Warehouse B', location: 'Pune', capacity: '5000 sq ft', manager: 'Suresh Patil', isActive: true },
-      { id: 3, code: 'WH-C', name: 'Cold Storage', location: 'Mumbai', capacity: '2000 sq ft', manager: 'Amit Shah', isActive: false },
-    ]);
+  loadWarehouses(event?: any): void {
+    this.loading.set(true);
+    const page = event?.first ? event.first / event.rows : 0;
+    const size = event?.rows || this.rows;
+    
+    this.warehouseService.getAll({ page, size }).subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.warehouses.set(response.data.content);
+          this.totalRecords.set(response.data.totalElements);
+        }
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to load warehouses' });
+      }
+    });
+  }
+
+  onSearch(): void {
+    this.loadWarehouses();
   }
 
   showDialog(): void {
+    this.editMode = false;
+    this.selectedWarehouse = null;
+    this.warehouseForm.reset({ type: 'MAIN', isActive: true });
     this.dialogVisible = true;
   }
-}
 
+  editWarehouse(warehouse: Warehouse): void {
+    this.editMode = true;
+    this.selectedWarehouse = warehouse;
+    this.warehouseForm.patchValue({
+      code: warehouse.code,
+      name: warehouse.name,
+      type: warehouse.type,
+      address: warehouse.address,
+      city: warehouse.city,
+      state: warehouse.state,
+      pincode: warehouse.pincode,
+      contactPerson: warehouse.contactPerson,
+      contactPhone: warehouse.contactPhone,
+      contactEmail: warehouse.contactEmail,
+      isActive: warehouse.isActive
+    });
+    this.dialogVisible = true;
+  }
+
+  saveWarehouse(): void {
+    if (this.warehouseForm.invalid) {
+      this.warehouseForm.markAllAsTouched();
+      return;
+    }
+
+    this.saving.set(true);
+    const request: WarehouseRequest = this.warehouseForm.value;
+
+    if (this.editMode && this.selectedWarehouse) {
+      this.warehouseService.update(this.selectedWarehouse.id, request).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.messageService.add({ severity: 'success', summary: 'Success', detail: 'Warehouse updated successfully' });
+            this.dialogVisible = false;
+            this.loadWarehouses();
+          }
+          this.saving.set(false);
+        },
+        error: () => {
+          this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to update warehouse' });
+          this.saving.set(false);
+        }
+      });
+    } else {
+      this.warehouseService.create(request).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.messageService.add({ severity: 'success', summary: 'Success', detail: 'Warehouse created successfully' });
+            this.dialogVisible = false;
+            this.loadWarehouses();
+          }
+          this.saving.set(false);
+        },
+        error: () => {
+          this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to create warehouse' });
+          this.saving.set(false);
+        }
+      });
+    }
+  }
+
+  confirmDelete(warehouse: Warehouse): void {
+    this.confirmationService.confirm({
+      message: `Are you sure you want to delete warehouse "${warehouse.name}"?`,
+      header: 'Confirm Delete',
+      icon: 'pi pi-exclamation-triangle',
+      accept: () => this.deleteWarehouse(warehouse)
+    });
+  }
+
+  deleteWarehouse(warehouse: Warehouse): void {
+    this.warehouseService.delete(warehouse.id).subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.messageService.add({ severity: 'success', summary: 'Success', detail: 'Warehouse deleted successfully' });
+          this.loadWarehouses();
+        }
+      },
+      error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete warehouse' })
+    });
+  }
+
+  closeDialog(): void {
+    this.dialogVisible = false;
+  }
+
+  toggleStatus(warehouse: Warehouse): void {
+    const action = warehouse.isActive ? 
+      this.warehouseService.deactivate(warehouse.id) : 
+      this.warehouseService.activate(warehouse.id);
+
+    action.subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.messageService.add({ 
+            severity: 'success', 
+            summary: 'Success', 
+            detail: `Warehouse ${warehouse.isActive ? 'deactivated' : 'activated'} successfully` 
+          });
+          this.loadWarehouses();
+        }
+      },
+      error: () => this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to update status' })
+    });
+  }
+
+  getTypeSeverity(type: string): 'success' | 'warning' | 'danger' | 'info' {
+    switch (type) {
+      case 'MAIN': return 'success';
+      case 'RAW_MATERIAL': return 'info';
+      case 'FINISHED_GOODS': return 'success';
+      case 'WIP': return 'warning';
+      case 'TRANSIT': return 'info';
+      case 'SCRAP': return 'danger';
+      default: return 'info';
+    }
+  }
+}

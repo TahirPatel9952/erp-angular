@@ -1,153 +1,191 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
+import { InputTextareaModule } from 'primeng/inputtextarea';
+import { InputNumberModule } from 'primeng/inputnumber';
 import { TagModule } from 'primeng/tag';
 import { DialogModule } from 'primeng/dialog';
+import { DropdownModule } from 'primeng/dropdown';
+import { ToastModule } from 'primeng/toast';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { TabViewModule } from 'primeng/tabview';
+import { TooltipModule } from 'primeng/tooltip';
+import { MessageService, ConfirmationService } from 'primeng/api';
+import { CustomerService } from '../../../core/services/customer.service';
+import { Customer, CustomerRequest } from '../../../core/models/customer.model';
 
 @Component({
   selector: 'app-customers',
   standalone: true,
-  imports: [CommonModule, FormsModule, TableModule, ButtonModule, InputTextModule, TagModule, DialogModule],
-  template: `
-    <div class="page-container">
-      <div class="page-header">
-        <h1>Customers</h1>
-        <div class="header-actions">
-          <span class="p-input-icon-left">
-            <i class="pi pi-search"></i>
-            <input pInputText placeholder="Search customers..." [(ngModel)]="searchTerm" />
-          </span>
-          <button pButton label="Add Customer" icon="pi pi-plus" (click)="showDialog()"></button>
-        </div>
-      </div>
-
-      <div class="card">
-        <p-table 
-          [value]="customers()" 
-          [paginator]="true" 
-          [rows]="10"
-          styleClass="p-datatable-sm"
-        >
-          <ng-template pTemplate="header">
-            <tr>
-              <th>Code</th>
-              <th>Name</th>
-              <th>Contact</th>
-              <th>Phone</th>
-              <th>GSTIN</th>
-              <th>Credit Limit</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="body" let-customer>
-            <tr>
-              <td><strong>{{ customer.code }}</strong></td>
-              <td>{{ customer.name }}</td>
-              <td>{{ customer.contact }}</td>
-              <td>{{ customer.phone }}</td>
-              <td>{{ customer.gstin }}</td>
-              <td>₹{{ customer.creditLimit | number:'1.0-0' }}</td>
-              <td>
-                <p-tag 
-                  [value]="customer.isActive ? 'Active' : 'Inactive'" 
-                  [severity]="customer.isActive ? 'success' : 'danger'"
-                />
-              </td>
-              <td>
-                <button pButton icon="pi pi-pencil" class="p-button-text p-button-sm"></button>
-                <button pButton icon="pi pi-trash" class="p-button-text p-button-sm p-button-danger"></button>
-              </td>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="emptymessage">
-            <tr>
-              <td colspan="8" class="text-center py-4">
-                <i class="pi pi-user text-4xl text-gray-300"></i>
-                <p class="text-gray-500 mt-2">No customers found</p>
-              </td>
-            </tr>
-          </ng-template>
-        </p-table>
-      </div>
-
-      <p-dialog 
-        [(visible)]="dialogVisible" 
-        header="Add Customer"
-        [modal]="true"
-        [style]="{width: '600px'}"
-      >
-        <div class="form-grid">
-          <div class="form-field">
-            <label class="required">Code</label>
-            <input pInputText class="w-full" />
-          </div>
-          <div class="form-field">
-            <label class="required">Name</label>
-            <input pInputText class="w-full" />
-          </div>
-          <div class="form-field">
-            <label>Contact Person</label>
-            <input pInputText class="w-full" />
-          </div>
-          <div class="form-field">
-            <label>Phone</label>
-            <input pInputText class="w-full" />
-          </div>
-          <div class="form-field">
-            <label>Email</label>
-            <input pInputText class="w-full" />
-          </div>
-          <div class="form-field">
-            <label>GSTIN</label>
-            <input pInputText class="w-full" />
-          </div>
-          <div class="form-field">
-            <label>Credit Limit</label>
-            <input pInputText type="number" class="w-full" />
-          </div>
-          <div class="form-field full-width">
-            <label>Address</label>
-            <input pInputText class="w-full" />
-          </div>
-        </div>
-        <ng-template pTemplate="footer">
-          <button pButton label="Cancel" class="p-button-text" (click)="dialogVisible = false"></button>
-          <button pButton label="Save"></button>
-        </ng-template>
-      </p-dialog>
-    </div>
-  `,
-  styles: [`
-    .header-actions {
-      display: flex;
-      gap: 1rem;
-      align-items: center;
-    }
-  `],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    TableModule,
+    ButtonModule,
+    InputTextModule,
+    InputTextareaModule,
+    InputNumberModule,
+    TagModule,
+    DialogModule,
+    DropdownModule,
+    ToastModule,
+    ConfirmDialogModule,
+    TabViewModule,
+    TooltipModule,
+  ],
+  providers: [MessageService, ConfirmationService],
+  templateUrl: './customers.component.html',
+  styleUrl: './customers.component.scss',
 })
 export class CustomersComponent implements OnInit {
-  customers = signal<any[]>([]);
+  private customerService = inject(CustomerService);
+  private messageService = inject(MessageService);
+  private confirmationService = inject(ConfirmationService);
+  private fb = inject(FormBuilder);
+
+  customers = signal<Customer[]>([]);
+  loading = signal(false);
+  saving = signal(false);
+  totalRecords = signal(0);
   searchTerm = '';
   dialogVisible = false;
+  editMode = false;
+  selectedCustomer: Customer | null = null;
 
-  ngOnInit(): void {
+  customerTypes = [
+    { label: 'Regular', value: 'REGULAR' },
+    { label: 'Distributor', value: 'DISTRIBUTOR' },
+    { label: 'Corporate', value: 'CORPORATE' },
+    { label: 'Retail', value: 'RETAIL' },
+  ];
+
+  customerForm: FormGroup = this.fb.group({
+    code: ['', Validators.required],
+    name: ['', Validators.required],
+    customerType: ['REGULAR'],
+    contactPerson: [''],
+    phone: [''],
+    email: ['', Validators.email],
+    billingAddress: [''],
+    billingCity: [''],
+    billingState: [''],
+    billingCountry: ['India'],
+    billingPincode: [''],
+    gstNo: [''],
+    panNo: [''],
+    creditLimit: [0],
+    paymentTerms: [30],
+    discountPercent: [0],
+  });
+
+  ngOnInit(): void {}
+
+  loadCustomers(event?: any): void {
+    this.loading.set(true);
+    const pageRequest = {
+      page: event?.first ? event.first / event.rows : 0,
+      size: event?.rows || 10,
+      sort: event?.sortField || 'name',
+      direction: (event?.sortOrder === 1 ? 'asc' : 'desc') as 'asc' | 'desc',
+    };
+
+    const request = this.searchTerm
+      ? this.customerService.search(this.searchTerm, pageRequest)
+      : this.customerService.getAll(pageRequest);
+
+    request.subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.customers.set(response.data.content);
+          this.totalRecords.set(response.data.totalElements);
+        }
+        this.loading.set(false);
+      },
+      error: () => {
+        this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to load customers' });
+        this.loading.set(false);
+      },
+    });
+  }
+
+  onSearch(): void {
     this.loadCustomers();
   }
 
-  loadCustomers(): void {
-    this.customers.set([
-      { id: 1, code: 'CUS-001', name: 'ABC Industries', contact: 'Vikram Singh', phone: '9876543220', gstin: '27AABCU9603R1ZP', creditLimit: 500000, isActive: true },
-      { id: 2, code: 'CUS-002', name: 'XYZ Corp', contact: 'Anita Desai', phone: '9876543221', gstin: '27AABCU9603R1ZQ', creditLimit: 750000, isActive: true },
-      { id: 3, code: 'CUS-003', name: 'Tech Solutions', contact: 'Rahul Mehta', phone: '9876543222', gstin: '27AABCU9603R1ZR', creditLimit: 300000, isActive: true },
-    ]);
-  }
-
   showDialog(): void {
+    this.editMode = false;
+    this.selectedCustomer = null;
+    this.customerForm.reset({ customerType: 'REGULAR', billingCountry: 'India', paymentTerms: 30 });
     this.dialogVisible = true;
   }
-}
 
+  editCustomer(customer: Customer): void {
+    this.editMode = true;
+    this.selectedCustomer = customer;
+    this.customerForm.patchValue(customer);
+    this.dialogVisible = true;
+  }
+
+  saveCustomer(): void {
+    if (this.customerForm.invalid) return;
+    this.saving.set(true);
+    const request: CustomerRequest = this.customerForm.value;
+
+    const operation =
+      this.editMode && this.selectedCustomer
+        ? this.customerService.update(this.selectedCustomer.id, request)
+        : this.customerService.create(request);
+
+    operation.subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.messageService.add({
+            severity: 'success',
+            summary: 'Success',
+            detail: `Customer ${this.editMode ? 'updated' : 'created'} successfully`,
+          });
+          this.dialogVisible = false;
+          this.loadCustomers();
+        }
+        this.saving.set(false);
+      },
+      error: (error) => {
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: error.error?.message || 'Failed to save customer',
+        });
+        this.saving.set(false);
+      },
+    });
+  }
+
+  confirmDelete(customer: Customer): void {
+    this.confirmationService.confirm({
+      message: `Are you sure you want to delete customer "${customer.name}"?`,
+      header: 'Confirm Delete',
+      icon: 'pi pi-exclamation-triangle',
+      accept: () => this.deleteCustomer(customer),
+    });
+  }
+
+  deleteCustomer(customer: Customer): void {
+    this.customerService.delete(customer.id).subscribe({
+      next: () => {
+        this.messageService.add({ severity: 'success', summary: 'Success', detail: 'Customer deleted successfully' });
+        this.loadCustomers();
+      },
+      error: () => {
+        this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete customer' });
+      },
+    });
+  }
+
+  closeDialog(): void {
+    this.dialogVisible = false;
+  }
+}

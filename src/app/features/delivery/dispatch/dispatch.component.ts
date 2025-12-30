@@ -10,73 +10,8 @@ import { TagModule } from 'primeng/tag';
   selector: 'app-dispatch',
   standalone: true,
   imports: [CommonModule, FormsModule, TableModule, ButtonModule, InputTextModule, TagModule],
-  template: `
-    <div class="page-container">
-      <div class="page-header">
-        <h1>Dispatch Management</h1>
-        <div class="header-actions">
-          <span class="p-input-icon-left">
-            <i class="pi pi-search"></i>
-            <input pInputText placeholder="Search dispatches..." [(ngModel)]="searchTerm" />
-          </span>
-        </div>
-      </div>
-
-      <div class="card">
-        <p-table 
-          [value]="dispatches()" 
-          [paginator]="true" 
-          [rows]="10"
-          styleClass="p-datatable-sm"
-        >
-          <ng-template pTemplate="header">
-            <tr>
-              <th>Dispatch ID</th>
-              <th>Challan No</th>
-              <th>Vehicle No</th>
-              <th>Driver</th>
-              <th>Dispatch Time</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="body" let-dispatch>
-            <tr>
-              <td><strong>{{ dispatch.dispatchId }}</strong></td>
-              <td>{{ dispatch.challanNo }}</td>
-              <td>{{ dispatch.vehicleNo }}</td>
-              <td>{{ dispatch.driver }}</td>
-              <td>{{ dispatch.dispatchTime }}</td>
-              <td>
-                <p-tag 
-                  [value]="dispatch.status" 
-                  [severity]="dispatch.status === 'Completed' ? 'success' : 'warning'"
-                />
-              </td>
-              <td>
-                <button pButton icon="pi pi-eye" class="p-button-text p-button-sm"></button>
-              </td>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="emptymessage">
-            <tr>
-              <td colspan="7" class="text-center py-4">
-                <i class="pi pi-truck text-4xl text-gray-300"></i>
-                <p class="text-gray-500 mt-2">No dispatches found</p>
-              </td>
-            </tr>
-          </ng-template>
-        </p-table>
-      </div>
-    </div>
-  `,
-  styles: [`
-    .header-actions {
-      display: flex;
-      gap: 1rem;
-      align-items: center;
-    }
-  `],
+  templateUrl: './dispatch.component.html',
+  styleUrl: './dispatch.component.scss',
 })
 export class DispatchComponent implements OnInit {
   dispatches = signal<any[]>([]);
@@ -93,4 +28,3 @@ export class DispatchComponent implements OnInit {
     ]);
   }
 }
-

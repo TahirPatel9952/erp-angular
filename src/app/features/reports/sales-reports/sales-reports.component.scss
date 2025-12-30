@@ -1,0 +1,34 @@
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.report-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.report-stat {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.report-stat:last-child {
+  border-bottom: none;
+}
+
+.report-stat .label {
+  color: var(--text-color-secondary);
+}
+
+.report-stat .value {
+  font-weight: 600;
+}
+
+.report-stat.warning .value {
+  color: var(--orange-500);
+}
+

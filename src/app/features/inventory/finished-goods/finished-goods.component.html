@@ -1,0 +1,262 @@
+<p-toast />
+<p-confirmDialog />
+
+<div class="page-container">
+  <div class="page-header">
+    <h1>Finished Goods</h1>
+    <div class="header-actions">
+      <span class="p-input-icon-left">
+        <i class="pi pi-search"></i>
+        <input pInputText placeholder="Search products..." [(ngModel)]="searchTerm" (input)="onSearch()" />
+      </span>
+      <button pButton label="Add Product" icon="pi pi-plus" (click)="showDialog()"></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <p-table
+      [value]="products()"
+      [paginator]="true"
+      [rows]="10"
+      [loading]="loading()"
+      [totalRecords]="totalRecords()"
+      [lazy]="true"
+      (onLazyLoad)="loadProducts($event)"
+      styleClass="p-datatable-sm p-datatable-striped"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th pSortableColumn="code">Code <p-sortIcon field="code" /></th>
+          <th pSortableColumn="name">Name <p-sortIcon field="name" /></th>
+          <th>Category</th>
+          <th>Unit</th>
+          <th class="text-right">Selling Price</th>
+          <th class="text-right">MRP</th>
+          <th>Status</th>
+          <th style="width: 120px">Actions</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-product>
+        <tr>
+          <td><strong>{{ product.code }}</strong></td>
+          <td>
+            <div class="product-info">
+              <span>{{ product.name }}</span>
+              @if (product.barcode) {
+                <small class="barcode">{{ product.barcode }}</small>
+              }
+            </div>
+          </td>
+          <td>{{ product.categoryName || '-' }}</td>
+          <td>{{ product.unitSymbol }}</td>
+          <td class="text-right">
+            <span class="price">₹{{ product.sellingPrice | number : '1.2-2' }}</span>
+          </td>
+          <td class="text-right">
+            <span class="price">₹{{ product.mrp | number : '1.2-2' }}</span>
+          </td>
+          <td>
+            <p-tag
+              [value]="product.isActive ? 'Active' : 'Inactive'"
+              [severity]="product.isActive ? 'success' : 'danger'"
+            />
+          </td>
+          <td>
+            <div class="action-buttons">
+              <button
+                pButton
+                icon="pi pi-pencil"
+                class="p-button-text p-button-sm p-button-rounded"
+                pTooltip="Edit"
+                (click)="editProduct(product)"
+              ></button>
+              <button
+                pButton
+                icon="pi pi-trash"
+                class="p-button-text p-button-sm p-button-rounded p-button-danger"
+                pTooltip="Delete"
+                (click)="confirmDelete(product)"
+              ></button>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="8" class="empty-message">
+            <i class="pi pi-box"></i>
+            <p>No products found</p>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+</div>
+
+<!-- Product Dialog -->
+<p-dialog
+  [(visible)]="dialogVisible"
+  [header]="editMode ? 'Edit Product' : 'Add Product'"
+  [modal]="true"
+  [style]="{ width: '800px' }"
+  [draggable]="false"
+  [resizable]="false"
+>
+  <p-tabView>
+    <!-- Basic Info Tab -->
+    <p-tabPanel header="Basic Info">
+      <form [formGroup]="productForm" class="form-grid">
+        <div class="form-field">
+          <label for="code" class="required">Code</label>
+          <input id="code" pInputText formControlName="code" class="w-full" placeholder="FG-001" />
+        </div>
+
+        <div class="form-field">
+          <label for="name" class="required">Name</label>
+          <input id="name" pInputText formControlName="name" class="w-full" />
+        </div>
+
+        <div class="form-field">
+          <label for="category">Category</label>
+          <p-dropdown
+            id="category"
+            formControlName="categoryId"
+            [options]="categories()"
+            optionLabel="name"
+            optionValue="id"
+            placeholder="Select Category"
+            [showClear]="true"
+            [filter]="true"
+            filterPlaceholder="Search..."
+            class="w-full"
+          />
+        </div>
+
+        <div class="form-field">
+          <label for="unit" class="required">Unit</label>
+          <p-dropdown
+            id="unit"
+            formControlName="unitId"
+            [options]="units()"
+            optionLabel="name"
+            optionValue="id"
+            placeholder="Select Unit"
+            [filter]="true"
+            class="w-full"
+          />
+        </div>
+
+        <div class="form-field full-width">
+          <label for="description">Description</label>
+          <textarea id="description" pInputTextarea formControlName="description" rows="2" class="w-full"></textarea>
+        </div>
+
+        <div class="form-field">
+          <label for="hsnCode">HSN Code</label>
+          <input id="hsnCode" pInputText formControlName="hsnCode" class="w-full" />
+        </div>
+
+        <div class="form-field">
+          <label for="barcode">Barcode</label>
+          <input id="barcode" pInputText formControlName="barcode" class="w-full" />
+        </div>
+      </form>
+    </p-tabPanel>
+
+    <!-- Pricing Tab -->
+    <p-tabPanel header="Pricing">
+      <form [formGroup]="productForm" class="form-grid">
+        <div class="form-field">
+          <label for="sellingPrice" class="required">Selling Price</label>
+          <p-inputNumber
+            id="sellingPrice"
+            formControlName="sellingPrice"
+            mode="currency"
+            currency="INR"
+            locale="en-IN"
+            class="w-full"
+          />
+        </div>
+
+        <div class="form-field">
+          <label for="mrp">MRP</label>
+          <p-inputNumber id="mrp" formControlName="mrp" mode="currency" currency="INR" locale="en-IN" class="w-full" />
+        </div>
+
+        <div class="form-field">
+          <label for="minimumSellingPrice">Minimum Selling Price</label>
+          <p-inputNumber
+            id="minimumSellingPrice"
+            formControlName="minimumSellingPrice"
+            mode="currency"
+            currency="INR"
+            locale="en-IN"
+            class="w-full"
+          />
+        </div>
+
+        <div class="form-field">
+          <label for="standardCost">Standard Cost</label>
+          <p-inputNumber
+            id="standardCost"
+            formControlName="standardCost"
+            mode="currency"
+            currency="INR"
+            locale="en-IN"
+            class="w-full"
+          />
+        </div>
+
+        <div class="form-field">
+          <label for="taxPercent">Tax %</label>
+          <p-inputNumber id="taxPercent" formControlName="taxPercent" suffix="%" class="w-full" />
+        </div>
+
+        <div class="form-field">
+          <label for="reorderLevel">Reorder Level</label>
+          <p-inputNumber id="reorderLevel" formControlName="reorderLevel" class="w-full" />
+        </div>
+      </form>
+    </p-tabPanel>
+
+    <!-- Attributes Tab -->
+    <p-tabPanel header="Attributes">
+      <form [formGroup]="productForm" class="form-grid">
+        <div class="form-field">
+          <label for="shelfLifeDays">Shelf Life (Days)</label>
+          <p-inputNumber id="shelfLifeDays" formControlName="shelfLifeDays" class="w-full" />
+        </div>
+
+        <div class="form-field">
+          <label for="weight">Weight</label>
+          <p-inputNumber id="weight" formControlName="weight" mode="decimal" class="w-full" />
+        </div>
+
+        <div class="form-field">
+          <label for="dimensions">Dimensions</label>
+          <input id="dimensions" pInputText formControlName="dimensions" placeholder="L x W x H" class="w-full" />
+        </div>
+
+        <div class="form-field checkbox-field">
+          <p-checkbox formControlName="isBatchTracked" [binary]="true" inputId="isBatchTracked" />
+          <label for="isBatchTracked">Track by Batch</label>
+        </div>
+      </form>
+    </p-tabPanel>
+  </p-tabView>
+
+  <ng-template pTemplate="footer">
+    <div class="dialog-footer">
+      <button pButton label="Cancel" class="p-button-text" icon="pi pi-times" (click)="closeDialog()"></button>
+      <button
+        pButton
+        label="Save"
+        icon="pi pi-check"
+        [loading]="saving()"
+        [disabled]="productForm.invalid"
+        (click)="saveProduct()"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>
+

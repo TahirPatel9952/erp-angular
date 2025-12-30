@@ -1,144 +1,272 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { TagModule } from 'primeng/tag';
 import { DialogModule } from 'primeng/dialog';
+import { DropdownModule } from 'primeng/dropdown';
+import { CalendarModule } from 'primeng/calendar';
 import { ProgressBarModule } from 'primeng/progressbar';
+import { ToastrService } from 'ngx-toastr';
+import { WorkOrderService, BOMService, WarehouseService } from '../../../core/services';
+import { WorkOrder, WorkOrderRequest } from '../../../core/models';
 
 @Component({
   selector: 'app-work-orders',
   standalone: true,
-  imports: [CommonModule, FormsModule, TableModule, ButtonModule, InputTextModule, TagModule, DialogModule, ProgressBarModule],
-  template: `
-    <div class="page-container">
-      <div class="page-header">
-        <h1>Work Orders</h1>
-        <div class="header-actions">
-          <span class="p-input-icon-left">
-            <i class="pi pi-search"></i>
-            <input pInputText placeholder="Search work orders..." [(ngModel)]="searchTerm" />
-          </span>
-          <button pButton label="Create Work Order" icon="pi pi-plus" (click)="showDialog()"></button>
-        </div>
-      </div>
-
-      <div class="card">
-        <p-table 
-          [value]="workOrders()" 
-          [paginator]="true" 
-          [rows]="10"
-          styleClass="p-datatable-sm"
-        >
-          <ng-template pTemplate="header">
-            <tr>
-              <th>Work Order</th>
-              <th>Product</th>
-              <th>Quantity</th>
-              <th>Start Date</th>
-              <th>Due Date</th>
-              <th>Progress</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="body" let-wo>
-            <tr>
-              <td><strong>{{ wo.woNumber }}</strong></td>
-              <td>{{ wo.product }}</td>
-              <td>{{ wo.quantity }}</td>
-              <td>{{ wo.startDate }}</td>
-              <td>{{ wo.dueDate }}</td>
-              <td style="width: 150px">
-                <p-progressBar [value]="wo.progress" [showValue]="true"></p-progressBar>
-              </td>
-              <td>
-                <p-tag 
-                  [value]="wo.status" 
-                  [severity]="wo.status === 'Completed' ? 'success' : wo.status === 'In Progress' ? 'warning' : 'info'"
-                />
-              </td>
-              <td>
-                <button pButton icon="pi pi-eye" class="p-button-text p-button-sm"></button>
-                <button pButton icon="pi pi-pencil" class="p-button-text p-button-sm"></button>
-              </td>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="emptymessage">
-            <tr>
-              <td colspan="8" class="text-center py-4">
-                <i class="pi pi-wrench text-4xl text-gray-300"></i>
-                <p class="text-gray-500 mt-2">No work orders found</p>
-              </td>
-            </tr>
-          </ng-template>
-        </p-table>
-      </div>
-
-      <p-dialog 
-        [(visible)]="dialogVisible" 
-        header="Create Work Order"
-        [modal]="true"
-        [style]="{width: '600px'}"
-      >
-        <div class="form-grid">
-          <div class="form-field">
-            <label class="required">Product</label>
-            <input pInputText class="w-full" placeholder="Select product" />
-          </div>
-          <div class="form-field">
-            <label class="required">Quantity</label>
-            <input pInputText type="number" class="w-full" />
-          </div>
-          <div class="form-field">
-            <label class="required">Start Date</label>
-            <input pInputText type="date" class="w-full" />
-          </div>
-          <div class="form-field">
-            <label class="required">Due Date</label>
-            <input pInputText type="date" class="w-full" />
-          </div>
-          <div class="form-field full-width">
-            <label>Sales Order Reference</label>
-            <input pInputText class="w-full" />
-          </div>
-        </div>
-        <ng-template pTemplate="footer">
-          <button pButton label="Cancel" class="p-button-text" (click)="dialogVisible = false"></button>
-          <button pButton label="Create"></button>
-        </ng-template>
-      </p-dialog>
-    </div>
-  `,
-  styles: [`
-    .header-actions {
-      display: flex;
-      gap: 1rem;
-      align-items: center;
-    }
-  `],
+  imports: [
+    CommonModule, 
+    FormsModule, 
+    ReactiveFormsModule,
+    TableModule, 
+    ButtonModule, 
+    InputTextModule, 
+    TagModule, 
+    DialogModule,
+    DropdownModule,
+    CalendarModule,
+    ProgressBarModule
+  ],
+  templateUrl: './work-orders.component.html',
+  styleUrl: './work-orders.component.scss',
 })
 export class WorkOrdersComponent implements OnInit {
-  workOrders = signal<any[]>([]);
+  private fb = inject(FormBuilder);
+  private toastr = inject(ToastrService);
+  private workOrderService = inject(WorkOrderService);
+  private bomService = inject(BOMService);
+  private warehouseService = inject(WarehouseService);
+
+  workOrders = signal<WorkOrder[]>([]);
+  boms = signal<any[]>([]);
+  warehouses = signal<any[]>([]);
+  loading = signal(false);
   searchTerm = '';
   dialogVisible = false;
+  isEditing = false;
+  selectedWorkOrder: WorkOrder | null = null;
+
+  totalRecords = 0;
+  rows = 10;
+  first = 0;
+
+  workOrderForm: FormGroup = this.fb.group({
+    bomId: [null, [Validators.required]],
+    salesOrderId: [null],
+    quantity: [1, [Validators.required, Validators.min(1)]],
+    plannedStartDate: [new Date(), [Validators.required]],
+    plannedEndDate: [null, [Validators.required]],
+    sourceWarehouseId: [null],
+    targetWarehouseId: [null],
+    priority: ['MEDIUM'],
+    notes: ['']
+  });
+
+  priorityOptions = [
+    { label: 'Low', value: 'LOW' },
+    { label: 'Medium', value: 'MEDIUM' },
+    { label: 'High', value: 'HIGH' },
+    { label: 'Urgent', value: 'URGENT' }
+  ];
 
   ngOnInit(): void {
     this.loadWorkOrders();
+    this.loadBoms();
+    this.loadWarehouses();
   }
 
   loadWorkOrders(): void {
-    this.workOrders.set([
-      { id: 1, woNumber: 'WO-2024-001', product: 'Motor Assembly A', quantity: 100, startDate: '2024-01-15', dueDate: '2024-01-25', progress: 75, status: 'In Progress' },
-      { id: 2, woNumber: 'WO-2024-002', product: 'Gear Box Standard', quantity: 50, startDate: '2024-01-14', dueDate: '2024-01-24', progress: 100, status: 'Completed' },
-      { id: 3, woNumber: 'WO-2024-003', product: 'Shaft Assembly', quantity: 200, startDate: '2024-01-20', dueDate: '2024-01-30', progress: 0, status: 'Planned' },
-    ]);
+    this.loading.set(true);
+    this.workOrderService.getAll({ page: this.first / this.rows, size: this.rows }).subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.workOrders.set(response.data.content);
+          this.totalRecords = response.data.totalElements;
+        }
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.toastr.error('Failed to load work orders');
+      }
+    });
+  }
+
+  loadBoms(): void {
+    this.bomService.getAllActive().subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.boms.set(response.data.map(bom => ({ 
+            label: `${bom.code} - ${bom.finishedGoodsName}`, 
+            value: bom.id 
+          })));
+        }
+      }
+    });
+  }
+
+  loadWarehouses(): void {
+    this.warehouseService.getAllActive().subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.warehouses.set(response.data.map(wh => ({ label: wh.name, value: wh.id })));
+        }
+      }
+    });
+  }
+
+  onSearch(): void {
+    if (this.searchTerm.trim()) {
+      this.workOrderService.search(this.searchTerm, { page: 0, size: this.rows }).subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            this.workOrders.set(response.data.content);
+            this.totalRecords = response.data.totalElements;
+          }
+        }
+      });
+    } else {
+      this.loadWorkOrders();
+    }
+  }
+
+  onPageChange(event: any): void {
+    this.first = event.first;
+    this.rows = event.rows;
+    this.loadWorkOrders();
   }
 
   showDialog(): void {
+    this.isEditing = false;
+    this.selectedWorkOrder = null;
+    this.workOrderForm.reset({ 
+      quantity: 1, 
+      priority: 'MEDIUM',
+      plannedStartDate: new Date()
+    });
     this.dialogVisible = true;
   }
-}
 
+  editWorkOrder(wo: WorkOrder): void {
+    this.isEditing = true;
+    this.selectedWorkOrder = wo;
+    this.workOrderForm.patchValue({
+      bomId: wo.bomId,
+      salesOrderId: wo.salesOrderId,
+      quantity: wo.quantity,
+      plannedStartDate: new Date(wo.plannedStartDate),
+      plannedEndDate: new Date(wo.plannedEndDate),
+      sourceWarehouseId: wo.sourceWarehouseId,
+      targetWarehouseId: wo.targetWarehouseId,
+      priority: wo.priority,
+      notes: wo.notes
+    });
+    this.dialogVisible = true;
+  }
+
+  saveWorkOrder(): void {
+    if (this.workOrderForm.invalid) {
+      this.workOrderForm.markAllAsTouched();
+      return;
+    }
+
+    const formValue = this.workOrderForm.value;
+    const request: WorkOrderRequest = {
+      ...formValue,
+      plannedStartDate: this.formatDate(formValue.plannedStartDate),
+      plannedEndDate: this.formatDate(formValue.plannedEndDate)
+    };
+
+    if (this.isEditing && this.selectedWorkOrder) {
+      this.workOrderService.update(this.selectedWorkOrder.id, request).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.toastr.success('Work order updated successfully');
+            this.dialogVisible = false;
+            this.loadWorkOrders();
+          }
+        },
+        error: () => this.toastr.error('Failed to update work order')
+      });
+    } else {
+      this.workOrderService.create(request).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.toastr.success('Work order created successfully');
+            this.dialogVisible = false;
+            this.loadWorkOrders();
+          }
+        },
+        error: () => this.toastr.error('Failed to create work order')
+      });
+    }
+  }
+
+  startWorkOrder(wo: WorkOrder): void {
+    this.workOrderService.start(wo.id).subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.toastr.success('Work order started');
+          this.loadWorkOrders();
+        }
+      },
+      error: () => this.toastr.error('Failed to start work order')
+    });
+  }
+
+  completeWorkOrder(wo: WorkOrder): void {
+    this.workOrderService.complete(wo.id).subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.toastr.success('Work order completed');
+          this.loadWorkOrders();
+        }
+      },
+      error: () => this.toastr.error('Failed to complete work order')
+    });
+  }
+
+  cancelWorkOrder(wo: WorkOrder): void {
+    const reason = prompt('Enter cancellation reason:');
+    if (reason) {
+      this.workOrderService.cancel(wo.id, reason).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.toastr.success('Work order cancelled');
+            this.loadWorkOrders();
+          }
+        },
+        error: () => this.toastr.error('Failed to cancel work order')
+      });
+    }
+  }
+
+  deleteWorkOrder(wo: WorkOrder): void {
+    if (confirm(`Are you sure you want to delete work order ${wo.orderNumber}?`)) {
+      this.workOrderService.delete(wo.id).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.toastr.success('Work order deleted');
+            this.loadWorkOrders();
+          }
+        },
+        error: () => this.toastr.error('Failed to delete work order')
+      });
+    }
+  }
+
+  getStatusSeverity(status: string): 'success' | 'warning' | 'danger' | 'info' {
+    switch (status) {
+      case 'COMPLETED': return 'success';
+      case 'IN_PROGRESS': return 'warning';
+      case 'CANCELLED': return 'danger';
+      default: return 'info';
+    }
+  }
+
+  formatDate(date: Date): string {
+    return date.toISOString().split('T')[0];
+  }
+}

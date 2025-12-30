@@ -1,0 +1,212 @@
+<p-toast />
+<p-confirmDialog />
+
+<div class="page-container">
+  <div class="page-header">
+    <h1>Suppliers</h1>
+    <div class="header-actions">
+      <span class="p-input-icon-left">
+        <i class="pi pi-search"></i>
+        <input pInputText placeholder="Search suppliers..." [(ngModel)]="searchTerm" (input)="onSearch()" />
+      </span>
+      <button pButton label="Add Supplier" icon="pi pi-plus" (click)="showDialog()"></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <p-table
+      [value]="suppliers()"
+      [paginator]="true"
+      [rows]="10"
+      [loading]="loading()"
+      [totalRecords]="totalRecords()"
+      [lazy]="true"
+      (onLazyLoad)="loadSuppliers($event)"
+      styleClass="p-datatable-sm p-datatable-striped"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th pSortableColumn="code">Code <p-sortIcon field="code" /></th>
+          <th pSortableColumn="name">Name <p-sortIcon field="name" /></th>
+          <th>Contact</th>
+          <th>City</th>
+          <th>GST No</th>
+          <th>Status</th>
+          <th style="width: 120px">Actions</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-supplier>
+        <tr>
+          <td><strong>{{ supplier.code }}</strong></td>
+          <td>{{ supplier.name }}</td>
+          <td>
+            <div class="contact-info">
+              <span>{{ supplier.contactPerson || '-' }}</span>
+              @if (supplier.phone) {
+                <small>{{ supplier.phone }}</small>
+              }
+            </div>
+          </td>
+          <td>{{ supplier.city || '-' }}</td>
+          <td>
+            <span class="gst-badge">{{ supplier.gstNo || '-' }}</span>
+          </td>
+          <td>
+            <p-tag
+              [value]="supplier.isActive ? 'Active' : 'Inactive'"
+              [severity]="supplier.isActive ? 'success' : 'danger'"
+            />
+          </td>
+          <td>
+            <div class="action-buttons">
+              <button
+                pButton
+                icon="pi pi-pencil"
+                class="p-button-text p-button-sm p-button-rounded"
+                pTooltip="Edit"
+                (click)="editSupplier(supplier)"
+              ></button>
+              <button
+                pButton
+                icon="pi pi-trash"
+                class="p-button-text p-button-sm p-button-rounded p-button-danger"
+                pTooltip="Delete"
+                (click)="confirmDelete(supplier)"
+              ></button>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="7" class="empty-message">
+            <i class="pi pi-truck"></i>
+            <p>No suppliers found</p>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+</div>
+
+<!-- Supplier Dialog -->
+<p-dialog
+  [(visible)]="dialogVisible"
+  [header]="editMode ? 'Edit Supplier' : 'Add Supplier'"
+  [modal]="true"
+  [style]="{ width: '700px' }"
+  [draggable]="false"
+  [resizable]="false"
+>
+  <p-tabView>
+    <!-- Basic Info Tab -->
+    <p-tabPanel header="Basic Info">
+      <form [formGroup]="supplierForm" class="form-grid">
+        <div class="form-field">
+          <label for="code" class="required">Code</label>
+          <input id="code" pInputText formControlName="code" class="w-full" placeholder="SUP-001" />
+        </div>
+
+        <div class="form-field">
+          <label for="name" class="required">Name</label>
+          <input id="name" pInputText formControlName="name" class="w-full" placeholder="Supplier name" />
+        </div>
+
+        <div class="form-field">
+          <label for="contactPerson">Contact Person</label>
+          <input id="contactPerson" pInputText formControlName="contactPerson" class="w-full" />
+        </div>
+
+        <div class="form-field">
+          <label for="phone">Phone</label>
+          <input id="phone" pInputText formControlName="phone" class="w-full" placeholder="+91-9876543210" />
+        </div>
+
+        <div class="form-field full-width">
+          <label for="email">Email</label>
+          <input id="email" pInputText formControlName="email" type="email" class="w-full" />
+        </div>
+      </form>
+    </p-tabPanel>
+
+    <!-- Address Tab -->
+    <p-tabPanel header="Address">
+      <form [formGroup]="supplierForm" class="form-grid">
+        <div class="form-field full-width">
+          <label for="address">Address</label>
+          <textarea id="address" pInputTextarea formControlName="address" rows="2" class="w-full"></textarea>
+        </div>
+
+        <div class="form-field">
+          <label for="city">City</label>
+          <input id="city" pInputText formControlName="city" class="w-full" />
+        </div>
+
+        <div class="form-field">
+          <label for="state">State</label>
+          <input id="state" pInputText formControlName="state" class="w-full" />
+        </div>
+
+        <div class="form-field">
+          <label for="country">Country</label>
+          <input id="country" pInputText formControlName="country" class="w-full" />
+        </div>
+
+        <div class="form-field">
+          <label for="pincode">Pincode</label>
+          <input id="pincode" pInputText formControlName="pincode" class="w-full" />
+        </div>
+      </form>
+    </p-tabPanel>
+
+    <!-- Tax & Bank Tab -->
+    <p-tabPanel header="Tax & Bank">
+      <form [formGroup]="supplierForm" class="form-grid">
+        <div class="form-field">
+          <label for="gstNo">GST No</label>
+          <input id="gstNo" pInputText formControlName="gstNo" class="w-full" placeholder="22AAAAA0000A1Z5" />
+        </div>
+
+        <div class="form-field">
+          <label for="panNo">PAN No</label>
+          <input id="panNo" pInputText formControlName="panNo" class="w-full" placeholder="AAAAA0000A" />
+        </div>
+
+        <div class="form-field">
+          <label for="bankName">Bank Name</label>
+          <input id="bankName" pInputText formControlName="bankName" class="w-full" />
+        </div>
+
+        <div class="form-field">
+          <label for="bankAccountNo">Account No</label>
+          <input id="bankAccountNo" pInputText formControlName="bankAccountNo" class="w-full" />
+        </div>
+
+        <div class="form-field">
+          <label for="bankIfsc">IFSC Code</label>
+          <input id="bankIfsc" pInputText formControlName="bankIfsc" class="w-full" />
+        </div>
+
+        <div class="form-field">
+          <label for="paymentTerms">Payment Terms (days)</label>
+          <p-inputNumber id="paymentTerms" formControlName="paymentTerms" class="w-full" />
+        </div>
+      </form>
+    </p-tabPanel>
+  </p-tabView>
+
+  <ng-template pTemplate="footer">
+    <div class="dialog-footer">
+      <button pButton label="Cancel" class="p-button-text" icon="pi pi-times" (click)="closeDialog()"></button>
+      <button
+        pButton
+        label="Save"
+        icon="pi pi-check"
+        [loading]="saving()"
+        [disabled]="supplierForm.invalid"
+        (click)="saveSupplier()"
+      ></button>
+    </div>
+  </ng-template>
+</p-dialog>
+

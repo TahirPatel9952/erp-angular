@@ -10,73 +10,8 @@ import { TagModule } from 'primeng/tag';
   selector: 'app-in-process',
   standalone: true,
   imports: [CommonModule, FormsModule, TableModule, ButtonModule, InputTextModule, TagModule],
-  template: `
-    <div class="page-container">
-      <div class="page-header">
-        <h1>In-Process Inventory</h1>
-        <div class="header-actions">
-          <span class="p-input-icon-left">
-            <i class="pi pi-search"></i>
-            <input pInputText placeholder="Search..." [(ngModel)]="searchTerm" />
-          </span>
-        </div>
-      </div>
-
-      <div class="card">
-        <p-table 
-          [value]="items()" 
-          [paginator]="true" 
-          [rows]="10"
-          styleClass="p-datatable-sm"
-        >
-          <ng-template pTemplate="header">
-            <tr>
-              <th>Work Order</th>
-              <th>Product</th>
-              <th>Stage</th>
-              <th>Quantity</th>
-              <th>Started</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="body" let-item>
-            <tr>
-              <td><strong>{{ item.workOrder }}</strong></td>
-              <td>{{ item.product }}</td>
-              <td>{{ item.stage }}</td>
-              <td>{{ item.quantity }}</td>
-              <td>{{ item.startDate }}</td>
-              <td>
-                <p-tag 
-                  [value]="item.status" 
-                  [severity]="item.status === 'Completed' ? 'success' : item.status === 'In Progress' ? 'warning' : 'info'"
-                />
-              </td>
-              <td>
-                <button pButton icon="pi pi-eye" class="p-button-text p-button-sm"></button>
-              </td>
-            </tr>
-          </ng-template>
-          <ng-template pTemplate="emptymessage">
-            <tr>
-              <td colspan="7" class="text-center py-4">
-                <i class="pi pi-cog text-4xl text-gray-300"></i>
-                <p class="text-gray-500 mt-2">No in-process inventory found</p>
-              </td>
-            </tr>
-          </ng-template>
-        </p-table>
-      </div>
-    </div>
-  `,
-  styles: [`
-    .header-actions {
-      display: flex;
-      gap: 1rem;
-      align-items: center;
-    }
-  `],
+  templateUrl: './in-process.component.html',
+  styleUrl: './in-process.component.scss',
 })
 export class InProcessComponent implements OnInit {
   items = signal<any[]>([]);
@@ -94,4 +29,3 @@ export class InProcessComponent implements OnInit {
     ]);
   }
 }
-
