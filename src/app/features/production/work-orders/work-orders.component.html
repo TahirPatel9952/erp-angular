@@ -31,23 +31,96 @@
       </ng-template>
       <ng-template pTemplate="body" let-wo>
         <tr>
-          <td><strong>{{ wo.woNumber }}</strong></td>
-          <td>{{ wo.product }}</td>
-          <td>{{ wo.quantity }}</td>
-          <td>{{ wo.startDate }}</td>
-          <td>{{ wo.dueDate }}</td>
+          <td><strong>{{ wo.orderNumber || wo.workOrderNo || '-' }}</strong></td>
+          <td>
+            <div>
+              <div class="font-semibold">{{ wo.finishedGoodsName || '-' }}</div>
+              <div class="text-sm text-gray-500">{{ wo.finishedGoodsCode || '' }}</div>
+            </div>
+          </td>
+          <td>
+            <div>
+              <span class="font-semibold">{{ wo.quantity || wo.plannedQuantity || 0 }}</span>
+              @if (wo.unitName || wo.unitSymbol) {
+                <span class="text-sm text-gray-500 ml-1">{{ wo.unitSymbol || wo.unitName }}</span>
+              }
+            </div>
+          </td>
+          <td>{{ formatDate(wo.plannedStartDate || wo.scheduledStartDate) }}</td>
+          <td>{{ formatDate(wo.plannedEndDate || wo.scheduledEndDate) }}</td>
           <td style="width: 150px">
-            <p-progressBar [value]="wo.progress" [showValue]="true"></p-progressBar>
+            <p-progressBar [value]="wo.progress || wo.completionPercentage || 0" [showValue]="true"></p-progressBar>
           </td>
           <td>
-            <p-tag 
-              [value]="wo.status" 
-              [severity]="wo.status === 'Completed' ? 'success' : wo.status === 'In Progress' ? 'warning' : 'info'"
-            />
+            @if (wo.status) {
+              <p-tag 
+                [value]="wo.status" 
+                [severity]="getStatusSeverity(wo.status)"
+              />
+            } @else {
+              <span class="text-gray-400">-</span>
+            }
           </td>
           <td>
-            <button pButton icon="pi pi-eye" class="p-button-text p-button-sm"></button>
-            <button pButton icon="pi pi-pencil" class="p-button-text p-button-sm"></button>
+            <div class="flex gap-1">
+              <button 
+                pButton 
+                icon="pi pi-eye" 
+                class="p-button-text p-button-sm"
+                [title]="'View details'"
+                (click)="viewWorkOrder(wo)"
+              ></button>
+              
+              @if (isDraftOrPlanned(wo.status)) {
+                <button 
+                  pButton 
+                  icon="pi pi-pencil" 
+                  class="p-button-text p-button-sm"
+                  [title]="'Edit work order'"
+                  (click)="editWorkOrder(wo)"
+                ></button>
+                <button 
+                  pButton 
+                  icon="pi pi-send" 
+                  label="Release"
+                  class="p-button-text p-button-sm p-button-info"
+                  [title]="'Release work order for production'"
+                  (click)="releaseWorkOrder(wo)"
+                ></button>
+              }
+              
+              @if (isReleased(wo.status)) {
+                <button 
+                  pButton 
+                  icon="pi pi-play" 
+                  label="Start"
+                  class="p-button-text p-button-sm p-button-success"
+                  [title]="'Start production'"
+                  (click)="startWorkOrder(wo)"
+                ></button>
+              }
+              
+              @if (isInProgress(wo.status)) {
+                <button 
+                  pButton 
+                  icon="pi pi-check" 
+                  label="Complete"
+                  class="p-button-text p-button-sm p-button-success"
+                  [title]="'Complete work order'"
+                  (click)="completeWorkOrder(wo)"
+                ></button>
+              }
+              
+              @if (isDraft(wo.status)) {
+                <button 
+                  pButton 
+                  icon="pi pi-trash" 
+                  class="p-button-text p-button-sm p-button-danger"
+                  [title]="'Delete work order'"
+                  (click)="deleteWorkOrder(wo)"
+                ></button>
+              }
+            </div>
           </td>
         </tr>
       </ng-template>
@@ -64,35 +137,150 @@
 
   <p-dialog 
     [(visible)]="dialogVisible" 
-    header="Create Work Order"
+    [header]="isEditing ? 'Edit Work Order' : 'Create Work Order'"
     [modal]="true"
-    [style]="{width: '600px'}"
+    [style]="{width: '700px'}"
+    (onHide)="dialogVisible = false"
   >
-    <div class="form-grid">
-      <div class="form-field">
-        <label class="required">Product</label>
-        <input pInputText class="w-full" placeholder="Select product" />
+    <form [formGroup]="workOrderForm" (ngSubmit)="saveWorkOrder()">
+      <div class="form-grid p-fluid">
+        <div class="form-field">
+          <label class="required">BOM (Bill of Materials)</label>
+          <p-dropdown 
+            formControlName="bomId"
+            [options]="boms()" 
+            optionLabel="label" 
+            optionValue="value"
+            placeholder="Select BOM"
+            [showClear]="true"
+            (onChange)="onBomChange()"
+            class="w-full"
+          ></p-dropdown>
+          @if (workOrderForm.get('bomId')?.invalid && workOrderForm.get('bomId')?.touched) {
+            <small class="p-error">BOM is required</small>
+          }
+        </div>
+
+        <div class="form-field">
+          <label class="required">Quantity</label>
+          <input 
+            pInputText 
+            type="number" 
+            formControlName="quantity"
+            class="w-full" 
+            min="1"
+            placeholder="Enter quantity"
+          />
+          @if (workOrderForm.get('quantity')?.invalid && workOrderForm.get('quantity')?.touched) {
+            <small class="p-error">Quantity must be at least 1</small>
+          }
+        </div>
+
+        <div class="form-field">
+          <label class="required">Start Date</label>
+          <p-calendar 
+            formControlName="plannedStartDate"
+            [showIcon]="true"
+            dateFormat="yy-mm-dd"
+            placeholder="Select start date"
+            class="w-full"
+          ></p-calendar>
+          @if (workOrderForm.get('plannedStartDate')?.invalid && workOrderForm.get('plannedStartDate')?.touched) {
+            <small class="p-error">Start date is required</small>
+          }
+        </div>
+
+        <div class="form-field">
+          <label class="required">End Date</label>
+          <p-calendar 
+            formControlName="plannedEndDate"
+            [showIcon]="true"
+            dateFormat="yy-mm-dd"
+            placeholder="Select end date"
+            [minDate]="workOrderForm.get('plannedStartDate')?.value"
+            class="w-full"
+          ></p-calendar>
+          @if (workOrderForm.get('plannedEndDate')?.invalid && workOrderForm.get('plannedEndDate')?.touched) {
+            <small class="p-error">End date is required</small>
+          }
+        </div>
+
+        <div class="form-field">
+          <label class="required">Warehouse</label>
+          <p-dropdown 
+            formControlName="warehouseId"
+            [options]="warehouses()" 
+            optionLabel="label" 
+            optionValue="value"
+            placeholder="Select warehouse"
+            [showClear]="true"
+            class="w-full"
+          ></p-dropdown>
+          @if (workOrderForm.get('warehouseId')?.invalid && workOrderForm.get('warehouseId')?.touched) {
+            <small class="p-error">Warehouse is required</small>
+          }
+        </div>
+
+        <div class="form-field">
+          <label>Priority</label>
+          <p-dropdown 
+            formControlName="priority"
+            [options]="priorityOptions" 
+            optionLabel="label" 
+            optionValue="value"
+            placeholder="Select priority"
+            class="w-full"
+          ></p-dropdown>
+        </div>
+
+        <div class="form-field">
+          <label>Batch Number</label>
+          <input 
+            pInputText 
+            formControlName="batchNo"
+            class="w-full" 
+            placeholder="Enter batch number (optional)"
+          />
+        </div>
+
+        <div class="form-field full-width">
+          <label>Sales Order Reference (Optional)</label>
+          <input 
+            pInputText 
+            type="number"
+            formControlName="salesOrderId"
+            class="w-full" 
+            placeholder="Enter sales order ID"
+          />
+        </div>
+
+        <div class="form-field full-width">
+          <label>Notes</label>
+          <textarea 
+            pInputTextarea 
+            formControlName="notes"
+            rows="3"
+            class="w-full" 
+            placeholder="Enter any notes (optional)"
+          ></textarea>
+        </div>
       </div>
-      <div class="form-field">
-        <label class="required">Quantity</label>
-        <input pInputText type="number" class="w-full" />
-      </div>
-      <div class="form-field">
-        <label class="required">Start Date</label>
-        <input pInputText type="date" class="w-full" />
-      </div>
-      <div class="form-field">
-        <label class="required">Due Date</label>
-        <input pInputText type="date" class="w-full" />
-      </div>
-      <div class="form-field full-width">
-        <label>Sales Order Reference</label>
-        <input pInputText class="w-full" />
-      </div>
-    </div>
+    </form>
     <ng-template pTemplate="footer">
-      <button pButton label="Cancel" class="p-button-text" (click)="dialogVisible = false"></button>
-      <button pButton label="Create"></button>
+      <button 
+        pButton 
+        label="Cancel" 
+        class="p-button-text" 
+        type="button"
+        (click)="dialogVisible = false"
+      ></button>
+      <button 
+        pButton 
+        [label]="isEditing ? 'Update' : 'Create'"
+        type="button"
+        (click)="saveWorkOrder()"
+        [disabled]="workOrderForm.invalid"
+      ></button>
     </ng-template>
   </p-dialog>
 </div>

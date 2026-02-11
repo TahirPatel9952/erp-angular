@@ -4,7 +4,12 @@
     <div class="header-actions">
       <span class="p-input-icon-left">
         <i class="pi pi-search"></i>
-        <input pInputText placeholder="Search BOMs..." [(ngModel)]="searchTerm" />
+        <input 
+          pInputText 
+          placeholder="Search BOMs..." 
+          [(ngModel)]="searchTerm" 
+          (keyup.enter)="onSearch()"
+        />
       </span>
       <button pButton label="Create BOM" icon="pi pi-plus" (click)="showDialog()"></button>
     </div>
@@ -14,7 +19,11 @@
     <p-table 
       [value]="boms()" 
       [paginator]="true" 
-      [rows]="10"
+      [rows]="rows"
+      [first]="first"
+      [totalRecords]="totalRecords"
+      (onPage)="onPageChange($event)"
+      [loading]="loading()"
       styleClass="p-datatable-sm"
     >
       <ng-template pTemplate="header">
@@ -31,20 +40,64 @@
       <ng-template pTemplate="body" let-bom>
         <tr>
           <td><strong>{{ bom.code }}</strong></td>
-          <td>{{ bom.product }}</td>
+          <td>{{ getProductName(bom) }}</td>
           <td>v{{ bom.version }}</td>
-          <td>{{ bom.componentCount }} items</td>
-          <td>₹{{ bom.unitCost | number:'1.2-2' }}</td>
+          <td>{{ getComponentCount(bom) }} items</td>
+          <td>₹{{ getUnitCost(bom) | number:'1.2-2' }}</td>
           <td>
             <p-tag 
-              [value]="bom.status" 
-              [severity]="bom.status === 'Active' ? 'success' : bom.status === 'Draft' ? 'warning' : 'danger'"
+              [value]="bom.status || (bom.isActive ? 'ACTIVE' : 'INACTIVE')" 
+              [severity]="getStatusSeverity(bom.status || (bom.isActive ? 'ACTIVE' : 'INACTIVE'))"
             />
           </td>
           <td>
-            <button pButton icon="pi pi-eye" class="p-button-text p-button-sm"></button>
-            <button pButton icon="pi pi-pencil" class="p-button-text p-button-sm"></button>
-            <button pButton icon="pi pi-copy" class="p-button-text p-button-sm"></button>
+            <div class="flex gap-1">
+              <button 
+                pButton 
+                icon="pi pi-eye" 
+                class="p-button-text p-button-sm"
+                [title]="'View details'"
+                (click)="viewBom(bom)"
+              ></button>
+              <button 
+                pButton 
+                icon="pi pi-pencil" 
+                class="p-button-text p-button-sm"
+                [title]="'Edit BOM'"
+                (click)="editBom(bom)"
+              ></button>
+              <button 
+                pButton 
+                icon="pi pi-copy" 
+                class="p-button-text p-button-sm"
+                [title]="'Duplicate BOM'"
+                (click)="duplicateBom(bom)"
+              ></button>
+              @if (bom.isActive) {
+                <button 
+                  pButton 
+                  icon="pi pi-ban" 
+                  class="p-button-text p-button-sm p-button-warning"
+                  [title]="'Deactivate BOM'"
+                  (click)="deactivateBom(bom)"
+                ></button>
+              } @else {
+                <button 
+                  pButton 
+                  icon="pi pi-check" 
+                  class="p-button-text p-button-sm p-button-success"
+                  [title]="'Activate BOM'"
+                  (click)="activateBom(bom)"
+                ></button>
+              }
+              <button 
+                pButton 
+                icon="pi pi-trash" 
+                class="p-button-text p-button-sm p-button-danger"
+                [title]="'Delete BOM'"
+                (click)="deleteBom(bom)"
+              ></button>
+            </div>
           </td>
         </tr>
       </ng-template>
@@ -59,30 +112,349 @@
     </p-table>
   </div>
 
+  <!-- BOM Dialog -->
   <p-dialog 
     [(visible)]="dialogVisible" 
-    header="Create Bill of Materials"
+    [header]="isEditing ? 'Edit Bill of Materials' : 'Create Bill of Materials'"
+    [modal]="true"
+    [style]="{width: '800px'}"
+    (onHide)="dialogVisible = false"
+  >
+    <form [formGroup]="bomForm" (ngSubmit)="saveBom()">
+      <div class="form-grid p-fluid">
+        <div class="form-field">
+          <label class="required">BOM Code</label>
+          <input 
+            pInputText 
+            formControlName="code"
+            class="w-full" 
+            placeholder="Enter BOM code"
+            [readonly]="isEditing"
+          />
+          @if (bomForm.get('code')?.invalid && bomForm.get('code')?.touched) {
+            <small class="p-error">BOM code is required</small>
+          }
+        </div>
+
+        <div class="form-field">
+          <label class="required">Product (Finished Goods)</label>
+          <p-dropdown
+            formControlName="finishedGoodsId"
+            [options]="finishedGoods()"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select product"
+            [showClear]="true"
+            class="w-full"
+          ></p-dropdown>
+          @if (bomForm.get('finishedGoodsId')?.invalid && bomForm.get('finishedGoodsId')?.touched) {
+            <small class="p-error">Product is required</small>
+          }
+        </div>
+
+        <div class="form-field">
+          <label class="required">Version</label>
+          <input 
+            pInputText 
+            formControlName="version"
+            class="w-full" 
+            placeholder="e.g., 1.0"
+          />
+          @if (bomForm.get('version')?.invalid && bomForm.get('version')?.touched) {
+            <small class="p-error">Version is required</small>
+          }
+        </div>
+
+        <div class="form-field">
+          <label class="required">Output Quantity</label>
+          <p-inputNumber
+            formControlName="outputQuantity"
+            [min]="0.001"
+            [maxFractionDigits]="3"
+            class="w-full"
+            placeholder="1"
+          ></p-inputNumber>
+          @if (bomForm.get('outputQuantity')?.invalid && bomForm.get('outputQuantity')?.touched) {
+            <small class="p-error">Output quantity is required</small>
+          }
+        </div>
+
+        <div class="form-field">
+          <label>Output Unit</label>
+          <p-dropdown
+            formControlName="outputUnitId"
+            [options]="units()"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select unit"
+            [showClear]="true"
+            class="w-full"
+          ></p-dropdown>
+        </div>
+
+        <div class="form-field">
+          <label>Effective From</label>
+          <p-calendar
+            formControlName="effectiveFrom"
+            [showIcon]="true"
+            dateFormat="yy-mm-dd"
+            placeholder="Select date"
+            class="w-full"
+          ></p-calendar>
+        </div>
+
+        <div class="form-field">
+          <label>Effective To</label>
+          <p-calendar
+            formControlName="effectiveTo"
+            [showIcon]="true"
+            dateFormat="yy-mm-dd"
+            placeholder="Select date"
+            class="w-full"
+          ></p-calendar>
+        </div>
+
+        <div class="form-field">
+          <label>Standard Time (Minutes)</label>
+          <p-inputNumber
+            formControlName="standardTimeMinutes"
+            [min]="0"
+            class="w-full"
+            placeholder="0"
+          ></p-inputNumber>
+        </div>
+
+        <div class="form-field">
+          <label>Setup Time (Minutes)</label>
+          <p-inputNumber
+            formControlName="setupTimeMinutes"
+            [min]="0"
+            class="w-full"
+            placeholder="0"
+          ></p-inputNumber>
+        </div>
+
+        <div class="form-field full-width">
+          <label>Description</label>
+          <textarea
+            pInputTextarea
+            formControlName="description"
+            rows="3"
+            class="w-full"
+            placeholder="Enter description (optional)"
+          ></textarea>
+        </div>
+
+        <div class="form-field">
+          <p-checkbox formControlName="isActive" label="Active"></p-checkbox>
+        </div>
+      </div>
+
+      <!-- BOM Items Section -->
+      <div class="mt-4">
+        <div class="flex justify-content-between align-items-center mb-2">
+          <h3>BOM Items (Components)</h3>
+          <button 
+            pButton 
+            type="button"
+            label="Add Item" 
+            icon="pi pi-plus" 
+            class="p-button-sm"
+            (click)="showItemDialog()"
+          ></button>
+        </div>
+
+        @if (bomItems.length === 0) {
+          <p class="text-gray-500 text-center py-4">No items added. Click "Add Item" to add components.</p>
+        } @else {
+          <p-table [value]="bomItems" styleClass="p-datatable-sm">
+            <ng-template pTemplate="header">
+              <tr>
+                <th>Seq</th>
+                <th>Type</th>
+                <th>Item</th>
+                <th>Quantity</th>
+                <th>Unit</th>
+                <th>Wastage %</th>
+                <th>Critical</th>
+                <th>Actions</th>
+              </tr>
+            </ng-template>
+            <ng-template pTemplate="body" let-item let-i="rowIndex">
+              <tr>
+                <td>{{ item.sequenceNo || i + 1 }}</td>
+                <td>{{ item.itemType }}</td>
+                <td>{{ item.itemName || item.itemCode }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>{{ item.unitSymbol || item.unitName }}</td>
+                <td>{{ item.wastagePercent || 0 }}%</td>
+                <td>
+                  @if (item.isCritical) {
+                    <i class="pi pi-check-circle text-green-500"></i>
+                  } @else {
+                    <i class="pi pi-times-circle text-gray-400"></i>
+                  }
+                </td>
+                <td>
+                  <button 
+                    pButton 
+                    icon="pi pi-pencil" 
+                    class="p-button-text p-button-sm"
+                    (click)="showItemDialog(i)"
+                  ></button>
+                  <button 
+                    pButton 
+                    icon="pi pi-trash" 
+                    class="p-button-text p-button-sm p-button-danger"
+                    (click)="deleteItem(i)"
+                  ></button>
+                </td>
+              </tr>
+            </ng-template>
+          </p-table>
+        }
+      </div>
+    </form>
+    <ng-template pTemplate="footer">
+      <button 
+        pButton 
+        label="Cancel" 
+        class="p-button-text" 
+        type="button"
+        (click)="dialogVisible = false"
+      ></button>
+      <button 
+        pButton 
+        [label]="isEditing ? 'Update' : 'Create'"
+        type="button"
+        (click)="saveBom()"
+        [disabled]="bomForm.invalid"
+      ></button>
+    </ng-template>
+  </p-dialog>
+
+  <!-- BOM Item Dialog -->
+  <p-dialog 
+    [(visible)]="itemDialogVisible" 
+    header="Add BOM Item"
     [modal]="true"
     [style]="{width: '600px'}"
+    (onHide)="itemDialogVisible = false"
   >
-    <div class="form-grid">
-      <div class="form-field">
-        <label class="required">Product</label>
-        <input pInputText class="w-full" placeholder="Select product" />
+    <form [formGroup]="itemForm" (ngSubmit)="saveItem()">
+      <div class="form-grid p-fluid">
+        <div class="form-field">
+          <label class="required">Item Type</label>
+          <p-dropdown
+            formControlName="itemType"
+            [options]="itemTypeOptions"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select type"
+            class="w-full"
+          ></p-dropdown>
+        </div>
+
+        <div class="form-field">
+          <label class="required">Item</label>
+          <p-dropdown
+            formControlName="itemId"
+            [options]="rawMaterials()"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select item"
+            [showClear]="true"
+            (onChange)="onMaterialChange()"
+            class="w-full"
+          ></p-dropdown>
+          @if (itemForm.get('itemId')?.invalid && itemForm.get('itemId')?.touched) {
+            <small class="p-error">Item is required</small>
+          }
+        </div>
+
+        <div class="form-field">
+          <label>Sequence Number</label>
+          <p-inputNumber
+            formControlName="sequenceNo"
+            [min]="0"
+            class="w-full"
+            placeholder="0"
+          ></p-inputNumber>
+        </div>
+
+        <div class="form-field">
+          <label class="required">Quantity</label>
+          <p-inputNumber
+            formControlName="quantity"
+            [min]="0.001"
+            [maxFractionDigits]="6"
+            class="w-full"
+            placeholder="0"
+          ></p-inputNumber>
+          @if (itemForm.get('quantity')?.invalid && itemForm.get('quantity')?.touched) {
+            <small class="p-error">Quantity is required</small>
+          }
+        </div>
+
+        <div class="form-field">
+          <label class="required">Unit</label>
+          <p-dropdown
+            formControlName="unitId"
+            [options]="units()"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select unit"
+            [showClear]="true"
+            class="w-full"
+          ></p-dropdown>
+          @if (itemForm.get('unitId')?.invalid && itemForm.get('unitId')?.touched) {
+            <small class="p-error">Unit is required</small>
+          }
+        </div>
+
+        <div class="form-field">
+          <label>Wastage Percent</label>
+          <p-inputNumber
+            formControlName="wastagePercent"
+            [min]="0"
+            [max]="100"
+            [maxFractionDigits]="2"
+            class="w-full"
+            placeholder="0"
+          ></p-inputNumber>
+        </div>
+
+        <div class="form-field">
+          <p-checkbox formControlName="isCritical" label="Critical Item"></p-checkbox>
+        </div>
+
+        <div class="form-field full-width">
+          <label>Notes</label>
+          <textarea
+            pInputTextarea
+            formControlName="notes"
+            rows="2"
+            class="w-full"
+            placeholder="Enter notes (optional)"
+          ></textarea>
+        </div>
       </div>
-      <div class="form-field">
-        <label class="required">Version</label>
-        <input pInputText class="w-full" value="1.0" />
-      </div>
-      <div class="form-field full-width">
-        <label>Description</label>
-        <input pInputText class="w-full" />
-      </div>
-    </div>
+    </form>
     <ng-template pTemplate="footer">
-      <button pButton label="Cancel" class="p-button-text" (click)="dialogVisible = false"></button>
-      <button pButton label="Create"></button>
+      <button 
+        pButton 
+        label="Cancel" 
+        class="p-button-text" 
+        type="button"
+        (click)="itemDialogVisible = false"
+      ></button>
+      <button 
+        pButton 
+        label="Save"
+        type="button"
+        (click)="saveItem()"
+        [disabled]="itemForm.invalid"
+      ></button>
     </ng-template>
   </p-dialog>
 </div>
-

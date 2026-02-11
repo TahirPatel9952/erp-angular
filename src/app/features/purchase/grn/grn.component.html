@@ -4,88 +4,381 @@
     <div class="header-actions">
       <span class="p-input-icon-left">
         <i class="pi pi-search"></i>
-        <input pInputText placeholder="Search GRNs..." [(ngModel)]="searchTerm" />
+        <input pInputText placeholder="Search GRNs..." [(ngModel)]="searchTerm" (keyup.enter)="onSearch()" />
       </span>
       <button pButton label="Create GRN" icon="pi pi-plus" (click)="showDialog()"></button>
     </div>
   </div>
 
   <div class="card">
-    <p-table 
-      [value]="grns()" 
-      [paginator]="true" 
-      [rows]="10"
-      styleClass="p-datatable-sm"
-    >
-      <ng-template pTemplate="header">
-        <tr>
-          <th>GRN Number</th>
-          <th>Date</th>
-          <th>PO Reference</th>
-          <th>Supplier</th>
-          <th>Items</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </ng-template>
-      <ng-template pTemplate="body" let-grn>
-        <tr>
-          <td><strong>{{ grn.grnNumber }}</strong></td>
-          <td>{{ grn.date }}</td>
-          <td>{{ grn.poReference }}</td>
-          <td>{{ grn.supplier }}</td>
-          <td>{{ grn.itemCount }} items</td>
-          <td>
-            <p-tag 
-              [value]="grn.status" 
-              [severity]="grn.status === 'Verified' ? 'success' : grn.status === 'QC Pending' ? 'warning' : 'info'"
-            />
-          </td>
-          <td>
-            <button pButton icon="pi pi-eye" class="p-button-text p-button-sm"></button>
-            <button pButton icon="pi pi-print" class="p-button-text p-button-sm"></button>
-          </td>
-        </tr>
-      </ng-template>
-      <ng-template pTemplate="emptymessage">
-        <tr>
-          <td colspan="7" class="text-center py-4">
-            <i class="pi pi-download text-4xl text-gray-300"></i>
-            <p class="text-gray-500 mt-2">No GRNs found</p>
-          </td>
-        </tr>
-      </ng-template>
-    </p-table>
+    @if (loading()) {
+      <p-table [value]="[1,2,3,4,5]" [rows]="10" [paginator]="false" styleClass="p-datatable-sm">
+        <ng-template pTemplate="header">
+          <tr>
+            <th>GRN Number</th>
+            <th>Date</th>
+            <th>PO Reference</th>
+            <th>Supplier</th>
+            <th>Items</th>
+            <th>Accepted Qty</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-i>
+          <tr>
+            <td><p-skeleton></p-skeleton></td>
+            <td><p-skeleton></p-skeleton></td>
+            <td><p-skeleton></p-skeleton></td>
+            <td><p-skeleton></p-skeleton></td>
+            <td><p-skeleton></p-skeleton></td>
+            <td><p-skeleton></p-skeleton></td>
+            <td><p-skeleton></p-skeleton></td>
+            <td><p-skeleton></p-skeleton></td>
+          </tr>
+        </ng-template>
+      </p-table>
+    } @else {
+      <p-table 
+        [value]="grns()" 
+        [paginator]="true" 
+        [rows]="rows"
+        [totalRecords]="totalRecords"
+        [lazy]="true"
+        (onLazyLoad)="onPageChange($event)"
+        [showCurrentPageReport]="true"
+        currentPageReportTemplate="Showing {first} to {last} of {totalRecords} entries"
+        [rowsPerPageOptions]="[10, 25, 50]"
+        [first]="first"
+        styleClass="p-datatable-sm"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th>GRN Number</th>
+            <th>Date</th>
+            <th>PO Reference</th>
+            <th>Supplier</th>
+            <th>Items</th>
+            <th>Accepted Qty</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-grn>
+          <tr>
+            <td><strong>{{ grn.grnNumber }}</strong></td>
+            <td>{{ formatDate(grn.receiptDate) }}</td>
+            <td>{{ grn.purchaseOrderNumber || '-' }}</td>
+            <td>{{ grn.supplierName || '-' }}</td>
+            <td>{{ grn.totalItems || 0 }} items</td>
+            <td>{{ grn.acceptedQuantity || 0 | number:'1.2-2' }}</td>
+            <td>
+              <p-tag 
+                [value]="grn.status?.replace('_', ' ')" 
+                [severity]="getStatusSeverity(grn.status)"
+              />
+            </td>
+            <td>
+              <div class="flex gap-1">
+                <button 
+                  pButton 
+                  icon="pi pi-eye" 
+                  class="p-button-text p-button-sm"
+                  pTooltip="View Details"
+                ></button>
+                @if (grn.status === 'DRAFT') {
+                  <button 
+                    pButton 
+                    icon="pi pi-pencil" 
+                    class="p-button-text p-button-sm"
+                    pTooltip="Edit"
+                  ></button>
+                }
+                @if (grn.status === 'DRAFT' || grn.status === 'PENDING_QC' || grn.status === 'QC_COMPLETED') {
+                  <button 
+                    pButton 
+                    icon="pi pi-check" 
+                    class="p-button-text p-button-sm p-button-success"
+                    pTooltip="Verify & Add Stock"
+                    (click)="verifyGrn(grn)"
+                  ></button>
+                }
+                @if (grn.status !== 'VERIFIED' && grn.status !== 'CANCELLED') {
+                  <button 
+                    pButton 
+                    icon="pi pi-times" 
+                    class="p-button-text p-button-sm p-button-danger"
+                    pTooltip="Cancel"
+                    (click)="cancelGrn(grn)"
+                  ></button>
+                }
+                @if (grn.status === 'DRAFT') {
+                  <button 
+                    pButton 
+                    icon="pi pi-trash" 
+                    class="p-button-text p-button-sm p-button-danger"
+                    pTooltip="Delete"
+                    (click)="deleteGrn(grn)"
+                  ></button>
+                }
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="8" class="text-center py-4">
+              <i class="pi pi-download text-4xl text-gray-300"></i>
+              <p class="text-gray-500 mt-2">No GRNs found</p>
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    }
   </div>
 
   <p-dialog 
     [(visible)]="dialogVisible" 
-    header="Create GRN"
+    [header]="isEditing ? 'Edit GRN' : 'Create GRN'"
     [modal]="true"
-    [style]="{width: '600px'}"
+    [style]="{width: '1000px'}"
+    (onHide)="dialogVisible = false"
   >
-    <div class="form-grid">
-      <div class="form-field">
-        <label class="required">Purchase Order</label>
-        <input pInputText class="w-full" placeholder="Select PO" />
+    <form [formGroup]="grnForm">
+      <div class="form-grid p-fluid mb-4">
+        <div class="form-field">
+          <label>Purchase Order</label>
+          <p-dropdown
+            formControlName="purchaseOrderId"
+            [options]="purchaseOrders()"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select PO (Optional)"
+            [showClear]="true"
+            class="w-full"
+            (onChange)="onPurchaseOrderSelect()"
+          ></p-dropdown>
+        </div>
+        <div class="form-field">
+          <label class="required">Supplier</label>
+          <p-dropdown
+            formControlName="supplierId"
+            [options]="suppliers()"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Supplier"
+            [showClear]="true"
+            class="w-full"
+          ></p-dropdown>
+          @if (grnForm.get('supplierId')?.invalid && grnForm.get('supplierId')?.touched) {
+            <small class="p-error">Supplier is required</small>
+          }
+        </div>
+        <div class="form-field">
+          <label class="required">Warehouse</label>
+          <p-dropdown
+            formControlName="warehouseId"
+            [options]="warehouses()"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Warehouse"
+            [showClear]="true"
+            class="w-full"
+          ></p-dropdown>
+          @if (grnForm.get('warehouseId')?.invalid && grnForm.get('warehouseId')?.touched) {
+            <small class="p-error">Warehouse is required</small>
+          }
+        </div>
+        <div class="form-field">
+          <label class="required">Receipt Date</label>
+          <p-calendar
+            formControlName="receiptDate"
+            [showIcon]="true"
+            dateFormat="yy-mm-dd"
+            placeholder="Select receipt date"
+            class="w-full"
+          ></p-calendar>
+          @if (grnForm.get('receiptDate')?.invalid && grnForm.get('receiptDate')?.touched) {
+            <small class="p-error">Receipt date is required</small>
+          }
+        </div>
+        <div class="form-field">
+          <label>Vehicle Number</label>
+          <input pInputText formControlName="vehicleNo" class="w-full" />
+        </div>
+        <div class="form-field">
+          <label>Driver Name</label>
+          <input pInputText formControlName="driverName" class="w-full" />
+        </div>
+        <div class="form-field">
+          <label>Challan Number</label>
+          <input pInputText formControlName="challanNo" class="w-full" />
+        </div>
+        <div class="form-field">
+          <label>Challan Date</label>
+          <p-calendar
+            formControlName="challanDate"
+            [showIcon]="true"
+            dateFormat="yy-mm-dd"
+            placeholder="Select challan date"
+            class="w-full"
+          ></p-calendar>
+        </div>
+        <div class="form-field full-width">
+          <label>Notes</label>
+          <textarea pInputTextarea formControlName="notes" rows="2" class="w-full"></textarea>
+        </div>
       </div>
-      <div class="form-field">
-        <label class="required">Receipt Date</label>
-        <input pInputText type="date" class="w-full" />
+
+      <h3 class="text-lg font-semibold mb-3">Items</h3>
+      <div formArrayName="items" class="mb-4">
+        @for (itemGroup of items.controls; track i; let i = $index) {
+          <div [formGroupName]="i" class="p-field p-grid p-nogutter p-mb-3 p-card p-p-3 mb-3">
+            <div class="p-col-12 flex justify-content-between align-items-center mb-3">
+              <h4 class="text-md font-medium">Item #{{ i + 1 }}</h4>
+              <button
+                pButton
+                type="button"
+                icon="pi pi-times"
+                class="p-button-danger p-button-text p-button-sm"
+                (click)="removeItem(i)"
+                pTooltip="Remove Item"
+                [disabled]="items.length === 1"
+              ></button>
+            </div>
+            <div class="form-grid p-fluid">
+              <div class="form-field">
+                <label class="required">Raw Material</label>
+                <p-dropdown
+                  formControlName="rawMaterialId"
+                  [options]="filteredRawMaterials()"
+                  optionLabel="label"
+                  optionValue="value"
+                  [placeholder]="selectedPurchaseOrder ? 'Select from PO materials' : 'Select material'"
+                  [showClear]="true"
+                  class="w-full"
+                  (onChange)="onMaterialSelect(i)"
+                ></p-dropdown>
+                @if (itemGroup.get('rawMaterialId')?.invalid && itemGroup.get('rawMaterialId')?.touched) {
+                  <small class="p-error">Raw material is required</small>
+                }
+                @if (selectedPurchaseOrder && filteredRawMaterials().length === 0) {
+                  <small class="p-warning">No materials found in selected Purchase Order</small>
+                }
+              </div>
+              <div class="form-field">
+                <label class="required">Unit</label>
+                <p-dropdown
+                  formControlName="unitId"
+                  [options]="units()"
+                  optionLabel="label"
+                  optionValue="value"
+                  placeholder="Select unit"
+                  class="w-full"
+                ></p-dropdown>
+                @if (itemGroup.get('unitId')?.invalid && itemGroup.get('unitId')?.touched) {
+                  <small class="p-error">Unit is required</small>
+                }
+              </div>
+              <div class="form-field">
+                <label>Ordered Qty</label>
+                <p-inputNumber
+                  formControlName="orderedQuantity"
+                  [min]="0"
+                  mode="decimal"
+                  [minFractionDigits]="3"
+                  [maxFractionDigits]="6"
+                  class="w-full"
+                ></p-inputNumber>
+              </div>
+              <div class="form-field">
+                <label class="required">Received Qty</label>
+                <p-inputNumber
+                  formControlName="receivedQuantity"
+                  [min]="0.001"
+                  mode="decimal"
+                  [minFractionDigits]="3"
+                  [maxFractionDigits]="6"
+                  class="w-full"
+                ></p-inputNumber>
+                @if (itemGroup.get('receivedQuantity')?.invalid && itemGroup.get('receivedQuantity')?.touched) {
+                  <small class="p-error">Received quantity must be positive</small>
+                }
+              </div>
+              <div class="form-field">
+                <label>Accepted Qty</label>
+                <p-inputNumber
+                  formControlName="acceptedQuantity"
+                  [min]="0"
+                  mode="decimal"
+                  [minFractionDigits]="3"
+                  [maxFractionDigits]="6"
+                  class="w-full"
+                ></p-inputNumber>
+              </div>
+              <div class="form-field">
+                <label>Rejected Qty</label>
+                <p-inputNumber
+                  formControlName="rejectedQuantity"
+                  [min]="0"
+                  mode="decimal"
+                  [minFractionDigits]="3"
+                  [maxFractionDigits]="6"
+                  class="w-full"
+                ></p-inputNumber>
+              </div>
+              <div class="form-field">
+                <label>Unit Price</label>
+                <p-inputNumber
+                  formControlName="unitPrice"
+                  [min]="0"
+                  mode="currency"
+                  currency="INR"
+                  locale="en-IN"
+                  class="w-full"
+                ></p-inputNumber>
+              </div>
+              <div class="form-field">
+                <label>Batch No</label>
+                <input pInputText formControlName="batchNo" class="w-full" />
+              </div>
+              <div class="form-field">
+                <label>Lot No</label>
+                <input pInputText formControlName="lotNo" class="w-full" />
+              </div>
+              <div class="form-field">
+                <label>Manufacturing Date</label>
+                <p-calendar
+                  formControlName="manufacturingDate"
+                  [showIcon]="true"
+                  dateFormat="yy-mm-dd"
+                  placeholder="Select date"
+                  class="w-full"
+                ></p-calendar>
+              </div>
+              <div class="form-field">
+                <label>Expiry Date</label>
+                <p-calendar
+                  formControlName="expiryDate"
+                  [showIcon]="true"
+                  dateFormat="yy-mm-dd"
+                  placeholder="Select date"
+                  class="w-full"
+                ></p-calendar>
+              </div>
+              <div class="form-field full-width">
+                <label>Notes</label>
+                <textarea pInputTextarea formControlName="notes" rows="1" class="w-full"></textarea>
+              </div>
+            </div>
+          </div>
+        }
+        <button type="button" pButton pRipple label="Add Item" icon="pi pi-plus" class="p-button-outlined p-button-sm" (click)="addItem()"></button>
       </div>
-      <div class="form-field">
-        <label>Invoice Number</label>
-        <input pInputText class="w-full" />
-      </div>
-      <div class="form-field">
-        <label>Vehicle Number</label>
-        <input pInputText class="w-full" />
-      </div>
-    </div>
+    </form>
     <ng-template pTemplate="footer">
       <button pButton label="Cancel" class="p-button-text" (click)="dialogVisible = false"></button>
-      <button pButton label="Create"></button>
+      <button pButton [label]="isEditing ? 'Update' : 'Create'" (click)="saveGrn()" [disabled]="grnForm.invalid"></button>
     </ng-template>
   </p-dialog>
 </div>
-

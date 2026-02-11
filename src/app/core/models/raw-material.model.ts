@@ -5,9 +5,19 @@ export interface RawMaterial {
   description?: string;
   categoryId?: number;
   categoryName?: string;
-  unitId: number;
-  unitName?: string;
-  unitSymbol?: string;
+  category?: {
+    id: number;
+    name: string;
+    code: string;
+  };
+  unitId?: number; // For backward compatibility
+  unit?: {
+    id: number;
+    name: string;
+    symbol: string;
+  };
+  unitName?: string; // For backward compatibility
+  unitSymbol?: string; // For backward compatibility
   hsnCode?: string;
   unitPrice: number;
   reorderLevel: number;

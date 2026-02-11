@@ -1,70 +1,75 @@
 export interface BOM {
   id: number;
   code: string;
-  name: string;
   description?: string;
   finishedGoodsId: number;
   finishedGoodsName?: string;
   finishedGoodsCode?: string;
   version: string;
-  quantity: number;
-  unitId: number;
-  unitName?: string;
-  unitCost?: number;
+  outputQuantity?: number;
+  outputUnitId?: number;
+  outputUnitName?: string;
+  outputUnitSymbol?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  standardTimeMinutes?: number;
+  setupTimeMinutes?: number;
+  isActive: boolean;
+  status?: string;
+  totalMaterialCost?: number;
   laborCost?: number;
   overheadCost?: number;
   totalCost?: number;
-  status: BOMStatus;
-  effectiveDate?: string;
-  expiryDate?: string;
-  notes?: string;
-  isActive: boolean;
   items?: BOMItem[];
   createdAt?: string;
   updatedAt?: string;
   createdBy?: number;
+  updatedBy?: number;
 }
 
 export interface BOMItem {
   id: number;
-  bomId: number;
-  rawMaterialId: number;
-  rawMaterialName?: string;
-  rawMaterialCode?: string;
+  itemType: string; // RAW_MATERIAL, IN_PROCESS, SUB_ASSEMBLY
+  itemId: number;
+  itemCode?: string;
+  itemName?: string;
+  sequenceNo?: number;
   quantity: number;
+  quantityWithWastage?: number;
   unitId: number;
   unitName?: string;
-  unitCost?: number;
-  totalCost?: number;
+  unitSymbol?: string;
   wastagePercent?: number;
+  isCritical?: boolean;
   notes?: string;
-  sequence: number;
+  unitPrice?: number;
+  totalPrice?: number;
 }
 
 export interface BOMRequest {
   code: string;
-  name: string;
-  description?: string;
   finishedGoodsId: number;
   version?: string;
-  quantity: number;
-  unitId: number;
-  laborCost?: number;
-  overheadCost?: number;
-  status?: BOMStatus;
-  effectiveDate?: string;
-  expiryDate?: string;
-  notes?: string;
+  description?: string;
+  outputQuantity?: number;
+  outputUnitId?: number;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  standardTimeMinutes?: number;
+  setupTimeMinutes?: number;
+  isActive?: boolean;
   items?: BOMItemRequest[];
 }
 
 export interface BOMItemRequest {
-  rawMaterialId: number;
+  itemType: string; // RAW_MATERIAL, IN_PROCESS, SUB_ASSEMBLY
+  itemId: number;
+  sequenceNo?: number;
   quantity: number;
   unitId: number;
   wastagePercent?: number;
+  isCritical?: boolean;
   notes?: string;
-  sequence?: number;
 }
 
 export type BOMStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'OBSOLETE';
