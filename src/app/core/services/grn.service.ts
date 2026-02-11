@@ -69,8 +69,10 @@ export class GRNService {
     return this.http.patch<ApiResponse<GRN>>(`${this.apiUrl}/${id}/verify`, {});
   }
 
-  cancel(id: number, reason?: string): Observable<ApiResponse<GRN>> {
-    return this.http.patch<ApiResponse<GRN>>(`${this.apiUrl}/${id}/cancel`, { reason });
+  cancel(id: number, reason: string): Observable<ApiResponse<GRN>> {
+    return this.http.patch<ApiResponse<GRN>>(`${this.apiUrl}/${id}/cancel`, null, {
+      params: { reason }
+    });
   }
 
   delete(id: number): Observable<ApiResponse<void>> {

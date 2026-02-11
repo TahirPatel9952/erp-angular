@@ -11,6 +11,7 @@ export * from './user.service';
 // Inventory
 export * from './raw-material.service';
 export * from './finished-goods.service';
+export * from './finished-goods-stock.service';
 export * from './stock.service';
 
 // Production

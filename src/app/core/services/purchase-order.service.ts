@@ -78,6 +78,10 @@ export class PurchaseOrderService {
     return this.http.patch<ApiResponse<PurchaseOrder>>(`${this.apiUrl}/${id}/send`, {});
   }
 
+  sendToSupplier(id: number): Observable<ApiResponse<PurchaseOrder>> {
+    return this.send(id);
+  }
+
   cancel(id: number, reason?: string): Observable<ApiResponse<PurchaseOrder>> {
     return this.http.patch<ApiResponse<PurchaseOrder>>(`${this.apiUrl}/${id}/cancel`, { reason });
   }

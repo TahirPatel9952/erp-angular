@@ -1,32 +1,40 @@
 export interface PurchaseOrder {
   id: number;
-  orderNumber: string;
+  orderNumber?: string;
+  poNumber?: string; // Backend uses poNumber
   supplierId: number;
   supplierName?: string;
   supplierCode?: string;
   orderDate: string;
-  expectedDeliveryDate: string;
+  expectedDate?: string; // Backend uses expectedDate
+  expectedDeliveryDate?: string; // Alias for expectedDate
   actualDeliveryDate?: string;
   warehouseId?: number;
   warehouseName?: string;
-  subtotal: number;
-  taxAmount: number;
-  discountAmount: number;
-  shippingCost: number;
-  totalAmount: number;
-  paidAmount: number;
-  balanceAmount: number;
+  subtotal?: number;
+  taxAmount?: number;
+  discountAmount?: number;
+  discountPercent?: number;
+  shippingCharges?: number;
+  shippingCost?: number; // Alias
+  grandTotal?: number;
+  totalAmount?: number; // Alias
+  paidAmount?: number;
+  balanceAmount?: number;
   status: PurchaseOrderStatus;
-  paymentStatus: PurchasePaymentStatus;
+  paymentStatus?: PurchasePaymentStatus;
   paymentTerms?: string;
+  deliveryTerms?: string;
   shippingMethod?: string;
   trackingNumber?: string;
   notes?: string;
+  internalNotes?: string;
   items?: PurchaseOrderItem[];
   createdAt?: string;
   updatedAt?: string;
   createdBy?: number;
   approvedBy?: number;
+  approvedByName?: string;
   approvedAt?: string;
 }
 
@@ -52,21 +60,24 @@ export interface PurchaseOrderItem {
 
 export interface PurchaseOrderRequest {
   supplierId: number;
-  orderDate: string;
-  expectedDeliveryDate: string;
-  warehouseId?: number;
-  discountAmount?: number;
-  shippingCost?: number;
+  warehouseId: number;
+  orderDate?: string;
+  expectedDate?: string; // Backend uses expectedDate
+  expectedDeliveryDate?: string; // Alias
+  discountPercent?: number;
+  shippingCharges?: number;
   paymentTerms?: string;
-  shippingMethod?: string;
+  deliveryTerms?: string;
   notes?: string;
+  internalNotes?: string;
   items: PurchaseOrderItemRequest[];
 }
 
 export interface PurchaseOrderItemRequest {
+  id?: number; // For updates
   rawMaterialId: number;
   quantity: number;
-  unitId: number;
+  unitId?: number; // Optional, can be derived from raw material
   unitPrice: number;
   taxPercent?: number;
   discountPercent?: number;

@@ -9,6 +9,13 @@
         <i class="pi pi-search"></i>
         <input pInputText placeholder="Search products..." [(ngModel)]="searchTerm" (input)="onSearch()" />
       </span>
+      <button 
+        pButton 
+        label="View Stock" 
+        icon="pi pi-box" 
+        class="p-button-outlined"
+        (click)="loadStockView()"
+      ></button>
       <button pButton label="Add Product" icon="pi pi-plus" (click)="showDialog()"></button>
     </div>
   </div>
@@ -30,6 +37,7 @@
           <th pSortableColumn="name">Name <p-sortIcon field="name" /></th>
           <th>Category</th>
           <th>Unit</th>
+          <th class="text-right">Stock</th>
           <th class="text-right">Selling Price</th>
           <th class="text-right">MRP</th>
           <th>Status</th>
@@ -49,6 +57,16 @@
           </td>
           <td>{{ product.categoryName || '-' }}</td>
           <td>{{ product.unitSymbol }}</td>
+          <td class="text-right">
+            <span 
+              [class]="getStockForProduct(product.id) <= (product.reorderLevel || 0) ? 'text-danger font-semibold' : 'text-success'"
+            >
+              {{ getStockForProduct(product.id) | number:'1.2-2' }} {{ product.unitSymbol }}
+            </span>
+            @if (getStockForProduct(product.id) <= (product.reorderLevel || 0) && product.reorderLevel) {
+              <br><small class="text-danger">Low Stock</small>
+            }
+          </td>
           <td class="text-right">
             <span class="price">₹{{ product.sellingPrice | number : '1.2-2' }}</span>
           </td>
@@ -83,7 +101,7 @@
       </ng-template>
       <ng-template pTemplate="emptymessage">
         <tr>
-          <td colspan="8" class="empty-message">
+          <td colspan="9" class="empty-message">
             <i class="pi pi-box"></i>
             <p>No products found</p>
           </td>
@@ -260,3 +278,73 @@
   </ng-template>
 </p-dialog>
 
+<!-- Stock View Dialog -->
+<p-dialog 
+  [(visible)]="showStockView" 
+  header="Finished Goods Stock Inventory"
+  [modal]="true"
+  [style]="{width: '1000px'}"
+  (onHide)="showStockView = false"
+>
+  <div class="card">
+    <p-table
+      [value]="stockItems()"
+      [paginator]="true"
+      [rows]="10"
+      [loading]="loading()"
+      styleClass="p-datatable-sm"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Product</th>
+          <th>Warehouse</th>
+          <th>Location</th>
+          <th class="text-right">Quantity</th>
+          <th class="text-right">Reserved</th>
+          <th class="text-right">Available</th>
+          <th>Batch No</th>
+          <th>Manufacturing Date</th>
+          <th>Expiry Date</th>
+          <th class="text-right">Unit Cost</th>
+          <th class="text-right">Total Value</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-stock>
+        <tr>
+          <td>
+            <div>
+              <div class="font-semibold">{{ stock.finishedGoodsName }}</div>
+              <div class="text-sm text-gray-500">{{ stock.finishedGoodsCode }}</div>
+            </div>
+          </td>
+          <td>{{ stock.warehouseName }}</td>
+          <td>{{ stock.locationName || '-' }}</td>
+          <td class="text-right font-semibold">{{ stock.quantity | number:'1.2-2' }}</td>
+          <td class="text-right text-warning">{{ stock.reservedQuantity || 0 | number:'1.2-2' }}</td>
+          <td class="text-right text-success">{{ stock.availableQuantity || stock.quantity | number:'1.2-2' }}</td>
+          <td>{{ stock.batchNo || '-' }}</td>
+          <td>{{ stock.manufacturingDate ? (stock.manufacturingDate | date:'shortDate') : '-' }}</td>
+          <td>
+            @if (stock.expiryDate) {
+              <span [class]="isExpiringSoon(stock.expiryDate) ? 'text-danger' : ''">
+                {{ stock.expiryDate | date:'shortDate' }}
+              </span>
+            } @else {
+              <span>-</span>
+            }
+          </td>
+          <td class="text-right">₹{{ stock.unitCost || 0 | number:'1.2-2' }}</td>
+          <td class="text-right font-semibold">₹{{ stock.totalValue || 0 | number:'1.2-2' }}</td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="11" class="text-center py-4">
+            <i class="pi pi-box text-4xl text-gray-300"></i>
+            <p class="text-gray-500 mt-2">No stock found</p>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+</p-dialog>

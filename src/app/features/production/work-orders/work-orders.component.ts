@@ -54,13 +54,14 @@ export class WorkOrdersComponent implements OnInit {
 
   workOrderForm: FormGroup = this.fb.group({
     bomId: [null, [Validators.required]],
+    finishedGoodsId: [null, [Validators.required]], // Will be set when BOM is selected
     salesOrderId: [null],
     quantity: [1, [Validators.required, Validators.min(1)]],
     plannedStartDate: [new Date(), [Validators.required]],
     plannedEndDate: [null, [Validators.required]],
-    sourceWarehouseId: [null],
-    targetWarehouseId: [null],
+    warehouseId: [null, [Validators.required]], // Changed from sourceWarehouseId/targetWarehouseId
     priority: ['MEDIUM'],
+    batchNo: [null],
     notes: ['']
   });
 
@@ -82,14 +83,27 @@ export class WorkOrdersComponent implements OnInit {
     this.workOrderService.getAll({ page: this.first / this.rows, size: this.rows }).subscribe({
       next: (response) => {
         if (response.success && response.data) {
-          this.workOrders.set(response.data.content);
+          const orders = response.data.content || [];
+          // Map backend field names to frontend if needed
+          const mappedOrders = orders.map((wo: any) => ({
+            ...wo,
+            orderNumber: wo.orderNumber || wo.workOrderNo,
+            quantity: wo.quantity || wo.plannedQuantity,
+            plannedStartDate: wo.plannedStartDate || wo.scheduledStartDate,
+            plannedEndDate: wo.plannedEndDate || wo.scheduledEndDate,
+            status: wo.status || 'DRAFT' // Default to DRAFT if status is missing
+          }));
+          this.workOrders.set(mappedOrders);
           this.totalRecords = response.data.totalElements;
+        } else {
+          this.workOrders.set([]);
         }
         this.loading.set(false);
       },
-      error: () => {
+      error: (error) => {
+        console.error('Error loading work orders:', error);
         this.loading.set(false);
-        this.toastr.error('Failed to load work orders');
+        this.toastr.error('Failed to load work orders', 'Error');
       }
     });
   }
@@ -98,21 +112,44 @@ export class WorkOrdersComponent implements OnInit {
     this.bomService.getAllActive().subscribe({
       next: (response) => {
         if (response.success && response.data) {
-          this.boms.set(response.data.map(bom => ({ 
+          // response.data is already an array (not wrapped in content)
+          const bomArray = Array.isArray(response.data) ? response.data : [];
+          this.boms.set(bomArray.map(bom => ({ 
             label: `${bom.code} - ${bom.finishedGoodsName}`, 
-            value: bom.id 
+            value: bom.id,
+            finishedGoodsId: bom.finishedGoodsId // Store finishedGoodsId for later use
           })));
         }
+      },
+      error: (error) => {
+        console.error('Error loading BOMs:', error);
+        this.toastr.error('Failed to load BOMs', 'Error');
       }
     });
+  }
+
+  onBomChange(): void {
+    const bomId = this.workOrderForm.get('bomId')?.value;
+    if (bomId) {
+      const selectedBom = this.boms().find(b => b.value === bomId);
+      if (selectedBom && selectedBom.finishedGoodsId) {
+        this.workOrderForm.patchValue({ finishedGoodsId: selectedBom.finishedGoodsId });
+      }
+    }
   }
 
   loadWarehouses(): void {
     this.warehouseService.getAllActive().subscribe({
       next: (response) => {
         if (response.success && response.data) {
-          this.warehouses.set(response.data.map(wh => ({ label: wh.name, value: wh.id })));
+          // response.data is already an array
+          const warehouseArray = Array.isArray(response.data) ? response.data : [];
+          this.warehouses.set(warehouseArray.map(wh => ({ label: wh.name, value: wh.id })));
         }
+      },
+      error: (error) => {
+        console.error('Error loading warehouses:', error);
+        this.toastr.error('Failed to load warehouses', 'Error');
       }
     });
   }
@@ -142,9 +179,16 @@ export class WorkOrdersComponent implements OnInit {
     this.isEditing = false;
     this.selectedWorkOrder = null;
     this.workOrderForm.reset({ 
+      bomId: null,
+      finishedGoodsId: null,
+      salesOrderId: null,
       quantity: 1, 
       priority: 'MEDIUM',
-      plannedStartDate: new Date()
+      plannedStartDate: new Date(),
+      plannedEndDate: null,
+      warehouseId: null,
+      batchNo: null,
+      notes: ''
     });
     this.dialogVisible = true;
   }
@@ -152,16 +196,22 @@ export class WorkOrdersComponent implements OnInit {
   editWorkOrder(wo: WorkOrder): void {
     this.isEditing = true;
     this.selectedWorkOrder = wo;
+    
+    // Get dates with fallback handling - handle both frontend and backend field names
+    const startDate = wo.plannedStartDate || wo.scheduledStartDate;
+    const endDate = wo.plannedEndDate || wo.scheduledEndDate;
+    
     this.workOrderForm.patchValue({
       bomId: wo.bomId,
+      finishedGoodsId: wo.finishedGoodsId,
       salesOrderId: wo.salesOrderId,
-      quantity: wo.quantity,
-      plannedStartDate: new Date(wo.plannedStartDate),
-      plannedEndDate: new Date(wo.plannedEndDate),
-      sourceWarehouseId: wo.sourceWarehouseId,
-      targetWarehouseId: wo.targetWarehouseId,
-      priority: wo.priority,
-      notes: wo.notes
+      quantity: wo.quantity || wo.plannedQuantity || 1,
+      plannedStartDate: startDate ? new Date(startDate) : new Date(),
+      plannedEndDate: endDate ? new Date(endDate) : new Date(),
+      warehouseId: wo.warehouseId || wo.targetWarehouseId || wo.sourceWarehouseId,
+      priority: wo.priority || 'MEDIUM',
+      batchNo: wo.batchNo || '',
+      notes: wo.notes || ''
     });
     this.dialogVisible = true;
   }
@@ -169,14 +219,24 @@ export class WorkOrdersComponent implements OnInit {
   saveWorkOrder(): void {
     if (this.workOrderForm.invalid) {
       this.workOrderForm.markAllAsTouched();
+      this.toastr.warning('Please fill all required fields', 'Validation Error');
       return;
     }
 
     const formValue = this.workOrderForm.value;
-    const request: WorkOrderRequest = {
-      ...formValue,
-      plannedStartDate: this.formatDate(formValue.plannedStartDate),
-      plannedEndDate: this.formatDate(formValue.plannedEndDate)
+    
+    // Map frontend fields to backend expected fields
+    // Backend expects: bomId, finishedGoodsId, warehouseId, plannedQuantity, scheduledStartDate, scheduledEndDate
+    const request: any = {
+      bomId: formValue.bomId,
+      finishedGoodsId: formValue.finishedGoodsId,
+      warehouseId: formValue.warehouseId,
+      plannedQuantity: formValue.quantity, // Backend expects plannedQuantity, not quantity
+      scheduledStartDate: this.formatDate(formValue.plannedStartDate), // Backend expects scheduledStartDate
+      scheduledEndDate: this.formatDate(formValue.plannedEndDate), // Backend expects scheduledEndDate
+      priority: formValue.priority || 'MEDIUM',
+      batchNo: formValue.batchNo || undefined,
+      notes: formValue.notes || undefined
     };
 
     if (this.isEditing && this.selectedWorkOrder) {
@@ -188,7 +248,11 @@ export class WorkOrdersComponent implements OnInit {
             this.loadWorkOrders();
           }
         },
-        error: () => this.toastr.error('Failed to update work order')
+        error: (error) => {
+          console.error('Error updating work order:', error);
+          const errorMsg = error?.error?.message || 'Failed to update work order';
+          this.toastr.error(errorMsg, 'Error');
+        }
       });
     } else {
       this.workOrderService.create(request).subscribe({
@@ -196,35 +260,85 @@ export class WorkOrdersComponent implements OnInit {
           if (response.success) {
             this.toastr.success('Work order created successfully');
             this.dialogVisible = false;
+            this.workOrderForm.reset({
+              quantity: 1,
+              priority: 'MEDIUM',
+              plannedStartDate: new Date()
+            });
             this.loadWorkOrders();
           }
         },
-        error: () => this.toastr.error('Failed to create work order')
+        error: (error) => {
+          console.error('Error creating work order:', error);
+          const errorMsg = error?.error?.message || error?.error?.error?.message || 'Failed to create work order';
+          this.toastr.error(errorMsg, 'Error');
+        }
       });
     }
   }
 
-  startWorkOrder(wo: WorkOrder): void {
-    this.workOrderService.start(wo.id).subscribe({
+  releaseWorkOrder(wo: WorkOrder): void {
+    if (!confirm(`Are you sure you want to release work order ${wo.orderNumber || wo.workOrderNo}?`)) {
+      return;
+    }
+    
+    this.workOrderService.release(wo.id).subscribe({
       next: (response) => {
         if (response.success) {
-          this.toastr.success('Work order started');
+          this.toastr.success('Work order released successfully');
           this.loadWorkOrders();
         }
       },
-      error: () => this.toastr.error('Failed to start work order')
+      error: (error) => {
+        console.error('Error releasing work order:', error);
+        const errorMsg = error?.error?.message || 'Failed to release work order';
+        this.toastr.error(errorMsg, 'Error');
+      }
+    });
+  }
+
+  startWorkOrder(wo: WorkOrder): void {
+    if (!confirm(`Start production for work order ${wo.orderNumber || wo.workOrderNo}?`)) {
+      return;
+    }
+    
+    this.workOrderService.start(wo.id).subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.toastr.success('Work order started successfully');
+          this.loadWorkOrders();
+        }
+      },
+      error: (error) => {
+        console.error('Error starting work order:', error);
+        const errorMsg = error?.error?.message || 'Failed to start work order';
+        this.toastr.error(errorMsg, 'Error');
+      }
     });
   }
 
   completeWorkOrder(wo: WorkOrder): void {
-    this.workOrderService.complete(wo.id).subscribe({
+    // Prompt for completed and rejected quantities
+    const completedQty = prompt(`Enter completed quantity (planned: ${wo.quantity}):`, wo.completedQuantity?.toString() || wo.quantity?.toString());
+    if (completedQty === null) return; // User cancelled
+    
+    const rejectedQty = prompt('Enter rejected quantity (optional, press Cancel for 0):', wo.rejectedQuantity?.toString() || '0');
+    
+    const completed = parseFloat(completedQty) || 0;
+    const rejected = rejectedQty !== null ? (parseFloat(rejectedQty) || 0) : 0;
+    
+    this.workOrderService.complete(wo.id, completed, rejected).subscribe({
       next: (response) => {
         if (response.success) {
-          this.toastr.success('Work order completed');
+          this.toastr.success('Work order completed successfully');
           this.loadWorkOrders();
         }
       },
-      error: () => this.toastr.error('Failed to complete work order')
+      error: (error) => {
+        console.error('Error completing work order:', error);
+        const errorMsg = error?.error?.message || 'Failed to complete work order';
+        this.toastr.error(errorMsg, 'Error');
+      }
     });
   }
 
@@ -257,16 +371,55 @@ export class WorkOrdersComponent implements OnInit {
     }
   }
 
-  getStatusSeverity(status: string): 'success' | 'warning' | 'danger' | 'info' {
-    switch (status) {
+  viewWorkOrder(wo: WorkOrder): void {
+    // TODO: Implement view details dialog or navigation
+    console.log('View work order:', wo);
+    this.toastr.info('View details feature coming soon', 'Info');
+  }
+
+  isDraftOrPlanned(status: string | undefined): boolean {
+    if (!status) return false;
+    const s = status.toUpperCase();
+    return s === 'DRAFT' || s === 'PLANNED';
+  }
+
+  isReleased(status: string | undefined): boolean {
+    if (!status) return false;
+    return status.toUpperCase() === 'RELEASED';
+  }
+
+  isInProgress(status: string | undefined): boolean {
+    if (!status) return false;
+    return status.toUpperCase() === 'IN_PROGRESS';
+  }
+
+  isDraft(status: string | undefined): boolean {
+    if (!status) return false;
+    return status.toUpperCase() === 'DRAFT';
+  }
+
+  getStatusSeverity(status: string | undefined): 'success' | 'warning' | 'danger' | 'info' | 'secondary' {
+    if (!status) return 'secondary';
+    
+    switch (status.toUpperCase()) {
       case 'COMPLETED': return 'success';
-      case 'IN_PROGRESS': return 'warning';
+      case 'IN_PROGRESS': return 'info';
+      case 'RELEASED': return 'warning';
       case 'CANCELLED': return 'danger';
+      case 'DRAFT': return 'secondary';
+      case 'PLANNED': return 'secondary';
       default: return 'info';
     }
   }
 
-  formatDate(date: Date): string {
-    return date.toISOString().split('T')[0];
+  // formatDate(date: Date): string {
+  //   console.log("Date-------",date, typeof date);
+  //   return date.toISOString().split('T')[0];
+  // }
+  formatDate(date: string | Date): string {
+    if (!date) return '';
+  
+    const d = new Date(date);
+    return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
   }
 }

@@ -75,11 +75,11 @@ export class ProductionTrackingService {
       if (pageRequest.page !== undefined) params = params.set('page', pageRequest.page.toString());
       if (pageRequest.size !== undefined) params = params.set('size', pageRequest.size.toString());
     }
-    return this.http.get<ApiResponse<PageResponse<InProcessInventory>>>(`${this.apiUrl}/in-process`, { params });
+    return this.http.get<ApiResponse<PageResponse<InProcessInventory>>>(`${environment.apiUrl}/v1/inventory/in-process`, { params });
   }
 
   getInProcessByWorkOrder(workOrderId: number): Observable<ApiResponse<InProcessInventory>> {
-    return this.http.get<ApiResponse<InProcessInventory>>(`${this.apiUrl}/in-process/work-order/${workOrderId}`);
+    return this.http.get<ApiResponse<InProcessInventory>>(`${environment.apiUrl}/v1/inventory/in-process/work-order/${workOrderId}`);
   }
 }
 

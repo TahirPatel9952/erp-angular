@@ -10,9 +10,12 @@ export interface GRN {
   receiptDate: string;
   invoiceNumber?: string;
   invoiceDate?: string;
-  vehicleNumber?: string;
+  vehicleNo?: string;
+  vehicleNumber?: string; // Alias
   driverName?: string;
-  challanNumber?: string;
+  challanNo?: string;
+  challanNumber?: string; // Alias
+  challanDate?: string;
   status: GRNStatus;
   totalItems: number;
   totalQuantity: number;
@@ -52,14 +55,14 @@ export interface GRNItem {
 }
 
 export interface GRNRequest {
-  purchaseOrderId: number;
+  purchaseOrderId?: number;
+  supplierId: number;
   warehouseId: number;
   receiptDate: string;
-  invoiceNumber?: string;
-  invoiceDate?: string;
-  vehicleNumber?: string;
+  vehicleNo?: string;
   driverName?: string;
-  challanNumber?: string;
+  challanNo?: string;
+  challanDate?: string;
   notes?: string;
   items: GRNItemRequest[];
 }
@@ -67,15 +70,17 @@ export interface GRNRequest {
 export interface GRNItemRequest {
   purchaseOrderItemId?: number;
   rawMaterialId: number;
+  orderedQuantity?: number;
   receivedQuantity: number;
-  acceptedQuantity: number;
+  acceptedQuantity?: number;
   rejectedQuantity?: number;
   unitId: number;
-  unitPrice: number;
+  unitPrice?: number;
   batchNumber?: string;
+  lotNo?: string;
   manufacturingDate?: string;
   expiryDate?: string;
-  qualityStatus?: QualityStatus;
+  qcStatus?: string;
   rejectionReason?: string;
   notes?: string;
 }

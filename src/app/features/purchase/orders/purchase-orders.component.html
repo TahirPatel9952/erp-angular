@@ -4,91 +4,337 @@
     <div class="header-actions">
       <span class="p-input-icon-left">
         <i class="pi pi-search"></i>
-        <input pInputText placeholder="Search POs..." [(ngModel)]="searchTerm" />
+        <input pInputText placeholder="Search POs..." [(ngModel)]="searchTerm" (keyup.enter)="onSearch()" />
       </span>
       <button pButton label="Create PO" icon="pi pi-plus" (click)="showDialog()"></button>
     </div>
   </div>
 
   <div class="card">
-    <p-table 
-      [value]="purchaseOrders()" 
-      [paginator]="true" 
-      [rows]="10"
-      styleClass="p-datatable-sm"
-    >
-      <ng-template pTemplate="header">
-        <tr>
-          <th>PO Number</th>
-          <th>Date</th>
-          <th>Supplier</th>
-          <th>Items</th>
-          <th>Total</th>
-          <th>Delivery Date</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </ng-template>
-      <ng-template pTemplate="body" let-po>
-        <tr>
-          <td><strong>{{ po.poNumber }}</strong></td>
-          <td>{{ po.date }}</td>
-          <td>{{ po.supplier }}</td>
-          <td>{{ po.itemCount }} items</td>
-          <td><strong>₹{{ po.total | number:'1.2-2' }}</strong></td>
-          <td>{{ po.deliveryDate }}</td>
-          <td>
-            <p-tag 
-              [value]="po.status" 
-              [severity]="po.status === 'Received' ? 'success' : po.status === 'Partial' ? 'warning' : 'info'"
-            />
-          </td>
-          <td>
-            <button pButton icon="pi pi-eye" class="p-button-text p-button-sm"></button>
-            <button pButton icon="pi pi-pencil" class="p-button-text p-button-sm"></button>
-            <button pButton icon="pi pi-print" class="p-button-text p-button-sm"></button>
-          </td>
-        </tr>
-      </ng-template>
-      <ng-template pTemplate="emptymessage">
-        <tr>
-          <td colspan="8" class="text-center py-4">
-            <i class="pi pi-shopping-cart text-4xl text-gray-300"></i>
-            <p class="text-gray-500 mt-2">No purchase orders found</p>
-          </td>
-        </tr>
-      </ng-template>
-    </p-table>
+    @if (loading()) {
+      <p-table [value]="[1,2,3,4,5]" [rows]="10" [paginator]="false" styleClass="p-datatable-sm">
+        <ng-template pTemplate="header">
+          <tr>
+            <th>PO Number</th>
+            <th>Date</th>
+            <th>Supplier</th>
+            <th>Items</th>
+            <th>Total</th>
+            <th>Delivery Date</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-i>
+          <tr>
+            <td><p-skeleton></p-skeleton></td>
+            <td><p-skeleton></p-skeleton></td>
+            <td><p-skeleton></p-skeleton></td>
+            <td><p-skeleton></p-skeleton></td>
+            <td><p-skeleton></p-skeleton></td>
+            <td><p-skeleton></p-skeleton></td>
+            <td><p-skeleton></p-skeleton></td>
+            <td><p-skeleton></p-skeleton></td>
+          </tr>
+        </ng-template>
+      </p-table>
+    } @else {
+      <p-table 
+        [value]="purchaseOrders()" 
+        [paginator]="true" 
+        [rows]="rows"
+        [first]="first"
+        [totalRecords]="totalRecords"
+        [lazy]="true"
+        (onLazyLoad)="onPageChange($event)"
+        [showCurrentPageReport]="true"
+        currentPageReportTemplate="Showing {first} to {last} of {totalRecords} entries"
+        [rowsPerPageOptions]="[10, 25, 50]"
+        [loading]="loading()"
+        styleClass="p-datatable-sm"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th>PO Number</th>
+            <th>Date</th>
+            <th>Supplier</th>
+            <th>Items</th>
+            <th>Total</th>
+            <th>Delivery Date</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-po>
+          <tr>
+            <td><strong>{{ po.poNumber || po.orderNumber }}</strong></td>
+            <td>{{ formatDate(po.orderDate) }}</td>
+            <td>{{ po.supplierName || '-' }}</td>
+            <td>{{ po.items?.length || 0 }} items</td>
+            <td><strong>₹{{ (po.grandTotal || po.totalAmount || 0) | number:'1.2-2' }}</strong></td>
+            <td>{{ formatDate(po.expectedDate || po.expectedDeliveryDate) }}</td>
+            <td>
+              <p-tag 
+                [value]="po.status?.replace('_', ' ')" 
+                [severity]="getStatusSeverity(po.status)"
+              />
+            </td>
+            <td>
+              <div class="flex gap-1">
+                <button 
+                  pButton 
+                  icon="pi pi-eye" 
+                  class="p-button-text p-button-sm"
+                  pTooltip="View Details"
+                ></button>
+                @if (po.status === 'DRAFT') {
+                  <button 
+                    pButton 
+                    icon="pi pi-pencil" 
+                    class="p-button-text p-button-sm"
+                    pTooltip="Edit"
+                    (click)="editPurchaseOrder(po)"
+                  ></button>
+                }
+                @if (po.status === 'DRAFT' || po.status === 'PENDING_APPROVAL') {
+                  <button 
+                    pButton 
+                    icon="pi pi-check" 
+                    class="p-button-text p-button-sm p-button-success"
+                    pTooltip="Approve"
+                    (click)="approvePurchaseOrder(po)"
+                  ></button>
+                }
+                @if (po.status === 'APPROVED') {
+                  <button 
+                    pButton 
+                    icon="pi pi-send" 
+                    class="p-button-text p-button-sm p-button-info"
+                    pTooltip="Send to Supplier"
+                    (click)="sendPurchaseOrder(po)"
+                  ></button>
+                }
+                @if (po.status !== 'CANCELLED' && po.status !== 'CLOSED') {
+                  <button 
+                    pButton 
+                    icon="pi pi-times" 
+                    class="p-button-text p-button-sm p-button-danger"
+                    pTooltip="Cancel"
+                    (click)="cancelPurchaseOrder(po)"
+                  ></button>
+                }
+                @if (po.status === 'DRAFT') {
+                  <button 
+                    pButton 
+                    icon="pi pi-trash" 
+                    class="p-button-text p-button-sm p-button-danger"
+                    pTooltip="Delete"
+                    (click)="deletePurchaseOrder(po)"
+                  ></button>
+                }
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="8" class="text-center py-4">
+              <i class="pi pi-shopping-cart text-4xl text-gray-300"></i>
+              <p class="text-gray-500 mt-2">No purchase orders found</p>
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    }
   </div>
 
   <p-dialog 
     [(visible)]="dialogVisible" 
-    header="Create Purchase Order"
+    [header]="isEditing ? 'Edit Purchase Order' : 'Create Purchase Order'"
     [modal]="true"
-    [style]="{width: '600px'}"
+    [style]="{width: '900px'}"
+    (onHide)="dialogVisible = false"
   >
-    <div class="form-grid">
-      <div class="form-field">
-        <label class="required">Supplier</label>
-        <input pInputText class="w-full" placeholder="Select supplier" />
+    <form [formGroup]="purchaseOrderForm">
+      <div class="form-grid p-fluid mb-4">
+        <div class="form-field">
+          <label class="required">Supplier</label>
+          <p-dropdown
+            formControlName="supplierId"
+            [options]="suppliers()"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Supplier"
+            [showClear]="true"
+            class="w-full"
+          ></p-dropdown>
+          @if (purchaseOrderForm.get('supplierId')?.invalid && purchaseOrderForm.get('supplierId')?.touched) {
+            <small class="p-error">Supplier is required</small>
+          }
+        </div>
+        <div class="form-field">
+          <label class="required">Warehouse</label>
+          <p-dropdown
+            formControlName="warehouseId"
+            [options]="warehouses()"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select Warehouse"
+            [showClear]="true"
+            class="w-full"
+          ></p-dropdown>
+          @if (purchaseOrderForm.get('warehouseId')?.invalid && purchaseOrderForm.get('warehouseId')?.touched) {
+            <small class="p-error">Warehouse is required</small>
+          }
+        </div>
+        <div class="form-field">
+          <label class="required">Order Date</label>
+          <p-calendar
+            formControlName="orderDate"
+            [showIcon]="true"
+            dateFormat="yy-mm-dd"
+            placeholder="Select order date"
+            class="w-full"
+          ></p-calendar>
+          @if (purchaseOrderForm.get('orderDate')?.invalid && purchaseOrderForm.get('orderDate')?.touched) {
+            <small class="p-error">Order date is required</small>
+          }
+        </div>
+        <div class="form-field">
+          <label class="required">Expected Delivery Date</label>
+          <p-calendar
+            formControlName="expectedDeliveryDate"
+            [showIcon]="true"
+            dateFormat="yy-mm-dd"
+            placeholder="Select delivery date"
+            [minDate]="purchaseOrderForm.get('orderDate')?.value"
+            class="w-full"
+          ></p-calendar>
+          @if (purchaseOrderForm.get('expectedDeliveryDate')?.invalid && purchaseOrderForm.get('expectedDeliveryDate')?.touched) {
+            <small class="p-error">Expected delivery date is required</small>
+          }
+        </div>
+        <div class="form-field">
+          <label>Payment Terms</label>
+          <input pInputText formControlName="paymentTerms" class="w-full" placeholder="e.g., Net 30" />
+        </div>
+        <div class="form-field">
+          <label>Shipping Method</label>
+          <input pInputText formControlName="shippingMethod" class="w-full" placeholder="e.g., Standard" />
+        </div>
+        <div class="form-field full-width">
+          <label>Notes</label>
+          <textarea pInputTextarea formControlName="notes" rows="2" class="w-full"></textarea>
+        </div>
       </div>
-      <div class="form-field">
-        <label class="required">Order Date</label>
-        <input pInputText type="date" class="w-full" />
+
+      <h3 class="text-lg font-semibold mb-3">Items</h3>
+      <div formArrayName="items" class="mb-4">
+        @for (itemGroup of items.controls; track i; let i = $index) {
+          <div [formGroupName]="i" class="p-field p-grid p-nogutter p-mb-3 p-card p-p-3 mb-3">
+            <div class="p-col-12 flex justify-content-between align-items-center mb-3">
+              <h4 class="text-md font-medium">Item #{{ i + 1 }}</h4>
+              <button
+                pButton
+                type="button"
+                icon="pi pi-times"
+                class="p-button-danger p-button-text p-button-sm"
+                (click)="removeItem(i)"
+                pTooltip="Remove Item"
+                [disabled]="items.length === 1"
+              ></button>
+            </div>
+            <div class="form-grid p-fluid">
+              <div class="form-field">
+                <label class="required">Raw Material</label>
+                <p-dropdown
+                  formControlName="rawMaterialId"
+                  [options]="rawMaterials()"
+                  optionLabel="label"
+                  optionValue="value"
+                  placeholder="Select material"
+                  [showClear]="true"
+                  class="w-full"
+                  (onChange)="onMaterialSelect(i)"
+                ></p-dropdown>
+                @if (itemGroup.get('rawMaterialId')?.invalid && itemGroup.get('rawMaterialId')?.touched) {
+                  <small class="p-error">Raw material is required</small>
+                }
+              </div>
+              <div class="form-field">
+                <label class="required">Quantity</label>
+                <p-inputNumber
+                  formControlName="quantity"
+                  [min]="0.001"
+                  [showButtons]="true"
+                  buttonLayout="horizontal"
+                  spinnerMode="horizontal"
+                  decrementButtonClass="p-button-secondary"
+                  incrementButtonClass="p-button-secondary"
+                  incrementButtonIcon="pi pi-plus"
+                  decrementButtonIcon="pi pi-minus"
+                  mode="decimal"
+                  [minFractionDigits]="3"
+                  [maxFractionDigits]="6"
+                  class="w-full"
+                ></p-inputNumber>
+                @if (itemGroup.get('quantity')?.invalid && itemGroup.get('quantity')?.touched) {
+                  <small class="p-error">Quantity must be positive</small>
+                }
+              </div>
+              <div class="form-field">
+                <label class="required">Unit Price (₹)</label>
+                <p-inputNumber
+                  formControlName="unitPrice"
+                  [min]="0"
+                  mode="currency"
+                  currency="INR"
+                  locale="en-IN"
+                  class="w-full"
+                ></p-inputNumber>
+                @if (itemGroup.get('unitPrice')?.invalid && itemGroup.get('unitPrice')?.touched) {
+                  <small class="p-error">Unit price is required</small>
+                }
+              </div>
+              <div class="form-field">
+                <label>Tax %</label>
+                <p-inputNumber
+                  formControlName="taxPercent"
+                  [min]="0"
+                  [max]="100"
+                  suffix="%"
+                  class="w-full"
+                ></p-inputNumber>
+              </div>
+              <div class="form-field">
+                <label>Discount %</label>
+                <p-inputNumber
+                  formControlName="discountPercent"
+                  [min]="0"
+                  [max]="100"
+                  suffix="%"
+                  class="w-full"
+                ></p-inputNumber>
+              </div>
+              <div class="form-field full-width">
+                <label>Notes</label>
+                <textarea pInputTextarea formControlName="notes" rows="1" class="w-full"></textarea>
+              </div>
+            </div>
+          </div>
+        }
+        <button type="button" pButton pRipple label="Add Item" icon="pi pi-plus" class="p-button-outlined p-button-sm" (click)="addItem()"></button>
       </div>
-      <div class="form-field">
-        <label class="required">Expected Delivery</label>
-        <input pInputText type="date" class="w-full" />
+
+      <div class="flex justify-content-end mt-3">
+        <div class="text-right">
+          <div class="text-lg font-semibold">Total: ₹{{ calculateTotal() | number:'1.2-2' }}</div>
+        </div>
       </div>
-      <div class="form-field">
-        <label>Payment Terms</label>
-        <input pInputText class="w-full" />
-      </div>
-    </div>
+    </form>
     <ng-template pTemplate="footer">
       <button pButton label="Cancel" class="p-button-text" (click)="dialogVisible = false"></button>
-      <button pButton label="Create"></button>
+      <button pButton [label]="isEditing ? 'Update' : 'Create'" (click)="savePurchaseOrder()" [disabled]="purchaseOrderForm.invalid"></button>
     </ng-template>
   </p-dialog>
 </div>
-

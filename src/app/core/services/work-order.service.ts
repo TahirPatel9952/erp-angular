@@ -69,12 +69,23 @@ export class WorkOrderService {
     return this.http.patch<ApiResponse<WorkOrder>>(`${this.apiUrl}/${id}/progress`, request);
   }
 
+  release(id: number): Observable<ApiResponse<WorkOrder>> {
+    return this.http.patch<ApiResponse<WorkOrder>>(`${this.apiUrl}/${id}/release`, {});
+  }
+
   start(id: number): Observable<ApiResponse<WorkOrder>> {
     return this.http.patch<ApiResponse<WorkOrder>>(`${this.apiUrl}/${id}/start`, {});
   }
 
-  complete(id: number): Observable<ApiResponse<WorkOrder>> {
-    return this.http.patch<ApiResponse<WorkOrder>>(`${this.apiUrl}/${id}/complete`, {});
+  complete(id: number, completedQuantity?: number, rejectedQuantity?: number): Observable<ApiResponse<WorkOrder>> {
+    let params = new HttpParams();
+    if (completedQuantity !== undefined) {
+      params = params.set('completedQuantity', completedQuantity.toString());
+    }
+    if (rejectedQuantity !== undefined) {
+      params = params.set('rejectedQuantity', rejectedQuantity.toString());
+    }
+    return this.http.patch<ApiResponse<WorkOrder>>(`${this.apiUrl}/${id}/complete`, {}, { params });
   }
 
   cancel(id: number, reason?: string): Observable<ApiResponse<WorkOrder>> {

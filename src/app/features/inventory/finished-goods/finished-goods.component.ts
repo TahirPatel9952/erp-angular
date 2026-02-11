@@ -15,10 +15,11 @@ import { TabViewModule } from 'primeng/tabview';
 import { CheckboxModule } from 'primeng/checkbox';
 import { TooltipModule } from 'primeng/tooltip';
 import { MessageService, ConfirmationService } from 'primeng/api';
-import { FinishedGoodsService } from '../../../core/services/finished-goods.service';
+import { FinishedGoodsService, FinishedGoodsStockService } from '../../../core/services';
 import { CategoryService } from '../../../core/services/category.service';
 import { UnitService } from '../../../core/services/unit.service';
 import { FinishedGoods, FinishedGoodsRequest } from '../../../core/models/finished-goods.model';
+import { FinishedGoodsStock } from '../../../core/models/finished-goods-stock.model';
 import { Category } from '../../../core/models/category.model';
 import { Unit } from '../../../core/models/unit.model';
 
@@ -49,6 +50,7 @@ import { Unit } from '../../../core/models/unit.model';
 })
 export class FinishedGoodsComponent implements OnInit {
   private productService = inject(FinishedGoodsService);
+  private stockService = inject(FinishedGoodsStockService);
   private categoryService = inject(CategoryService);
   private unitService = inject(UnitService);
   private messageService = inject(MessageService);
@@ -56,6 +58,7 @@ export class FinishedGoodsComponent implements OnInit {
   private fb = inject(FormBuilder);
 
   products = signal<FinishedGoods[]>([]);
+  stockMap = signal<Map<number, number>>(new Map()); // finishedGoodsId -> totalStock
   categories = signal<Category[]>([]);
   units = signal<Unit[]>([]);
   loading = signal(false);
@@ -65,6 +68,8 @@ export class FinishedGoodsComponent implements OnInit {
   dialogVisible = false;
   editMode = false;
   selectedProduct: FinishedGoods | null = null;
+  showStockView = false;
+  stockItems = signal<FinishedGoodsStock[]>([]);
 
   productForm: FormGroup = this.fb.group({
     code: ['', Validators.required],
@@ -109,14 +114,58 @@ export class FinishedGoodsComponent implements OnInit {
         if (response.success && response.data) {
           this.products.set(response.data.content);
           this.totalRecords.set(response.data.totalElements);
+          // Load stock for all products
+          this.loadStockForProducts(response.data.content);
         }
         this.loading.set(false);
       },
-      error: () => {
+      error: (error) => {
+        console.error('Error loading products:', error);
         this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to load products' });
         this.loading.set(false);
       },
     });
+  }
+
+  loadStockForProducts(products: FinishedGoods[]): void {
+    const stockMap = new Map<number, number>();
+    products.forEach(product => {
+      this.stockService.getTotalStockByFinishedGoodsId(product.id).subscribe({
+        next: (response) => {
+          if (response.success && response.data !== undefined) {
+            stockMap.set(product.id, response.data);
+            this.stockMap.set(new Map(stockMap));
+          }
+        },
+        error: (error) => {
+          console.error(`Error loading stock for product ${product.id}:`, error);
+          stockMap.set(product.id, 0);
+          this.stockMap.set(new Map(stockMap));
+        }
+      });
+    });
+  }
+
+  loadStockView(): void {
+    this.showStockView = true;
+    this.loading.set(true);
+    this.stockService.getAllWithStock().subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.stockItems.set(response.data);
+        }
+        this.loading.set(false);
+      },
+      error: (error) => {
+        console.error('Error loading stock:', error);
+        this.messageService.add({ severity: 'error', summary: 'Error', detail: 'Failed to load stock' });
+        this.loading.set(false);
+      }
+    });
+  }
+
+  getStockForProduct(productId: number): number {
+    return this.stockMap().get(productId) || 0;
   }
 
   loadCategories(): void {
@@ -214,5 +263,13 @@ export class FinishedGoodsComponent implements OnInit {
 
   closeDialog(): void {
     this.dialogVisible = false;
+  }
+
+  isExpiringSoon(expiryDate: string): boolean {
+    if (!expiryDate) return false;
+    const expiry = new Date(expiryDate);
+    const today = new Date();
+    const daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return daysUntilExpiry <= 30 && daysUntilExpiry >= 0;
   }
 }

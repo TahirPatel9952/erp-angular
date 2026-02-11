@@ -5,6 +5,7 @@ export * from './category.model';
 export * from './unit.model';
 export * from './warehouse.model';
 export * from './finished-goods.model';
+export * from './finished-goods-stock.model';
 export * from './supplier.model';
 export * from './customer.model';
 export * from './user.model';
